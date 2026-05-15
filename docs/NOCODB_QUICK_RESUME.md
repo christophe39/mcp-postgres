@@ -1,84 +1,114 @@
-# NocoDB - Résumé Rapide du Problème
+# NocoDB - Résumé du Problème et Solution (15 mai 2026)
 
-## 🚨 Situation
+## 🚨 Problème Initial
 
-**TOUTES les bases PostgreSQL dans NocoDB affichent 0 records**
-- Base CaloCalc (pe6zak9d7qjwers) : vide
-- Erreur systématique : `KnexTimeoutError: pool is probably full`
-- **Impact :** Business bloqué, impossible de consulter les données CaloCalc
+**TOUTES les bases PostgreSQL dans NocoDB affichaient 0 records**
+- Erreur : `KnexTimeoutError: pool is probably full`
+- Erreur UI : "Forbidden host name or IP address"
+- **Impact :** Impossible de consulter les données
 
-## ✅ Ce qui fonctionne
+## ✅ SOLUTION TROUVÉE
 
-- ✅ Données PostgreSQL intactes (vérifiées directement)
-- ✅ Réseau Docker OK (tous les containers accessibles)
-- ✅ Connexions PostgreSQL directes OK (hors NocoDB)
-- ✅ NocoDB démarre correctement (healthy)
+### Cause Racine
+**NocoDB 2026 bloque par défaut les connexions vers des bases de données sur le réseau local** (protection SSRF - Server-Side Request Forgery).
 
-## ❌ Ce qui ne fonctionne PAS
+### Fix en 2 étapes
 
-- ❌ NocoDB → PostgreSQL : timeout systématique
-- ❌ Pool de connexions Knex saturé immédiatement
-- ❌ Toutes les requêtes API échouent
-
-## 🔍 Cause probable
-
-**Pool de connexions Knex bloqué/saturé**
-- Soit connexions zombies qui ne se ferment pas
-- Soit bug version NocoDB 0.301.5
-- Soit problème tunnel SSH vers VPS OVH (10.0.1.1:5433)
-
-## 🎯 Prochaines actions (par priorité)
-
-### 1. Diagnostic tunnel SSH (15 min)
+#### 1. Ajouter la variable d'environnement
 ```bash
-# Tester le tunnel
-nc -zv 10.0.1.1 5433
+echo 'NC_ALLOW_LOCAL_EXTERNAL_DBS=true' >> /data/coolify/services/hgcocsgs8gk44sgo04w04ckk/.env
+```
 
-# Connexion via tunnel
+#### 2. RECRÉER le container (important : pas juste restart)
+```bash
+cd /data/coolify/services/hgcocsgs8gk44sgo04w04ckk
+docker compose up -d --force-recreate
+```
+
+#### 3. Vérifier que la variable est chargée
+```bash
+docker exec nocodb-hgcocsgs8gk44sgo04w04ckk printenv | grep NC_ALLOW_LOCAL_EXTERNAL_DBS
+# Doit afficher : NC_ALLOW_LOCAL_EXTERNAL_DBS=true
+```
+
+## 📊 Résultat
+
+✅ **OPEPARTNER** : Base locale connectée avec succès
+- Container : `pk4s888o4wkc8ogokg0sg840`
+- IP : `10.0.1.23`
+- Port : `5432`
+- User : `nocodb_opepartner`
+- Password : `OpePartner2024!`
+- 14 tables visibles et fonctionnelles
+
+## ⚠️ Problème Restant : Tunnel SSH
+
+**CaloCalc (VPS OVH via tunnel SSH)** : Toujours bloqué
+
+### Diagnostic
+- Tunnel SSH fonctionne depuis l'hôte (`127.0.0.1:5433` ✅)
+- Tunnel SSH **inaccessible depuis containers Docker** (`10.0.1.1:5433` ❌)
+- Problème : Routage réseau Docker bloque l'accès au tunnel
+
+### Options pour CaloCalc
+
+#### Option A : Migrer CaloCalc en local (recommandé)
+Créer la base `calocalc_inscription` sur le VPS Hostinger et migrer les données.
+
+#### Option B : Proxy PostgreSQL en mode host
+Créer un container proxy avec `network_mode: host` qui expose le tunnel SSH dans le réseau Docker.
+
+#### Option C : NocoDB en mode host (non recommandé)
+Mettre NocoDB en `network_mode: host` mais perd l'intégration Traefik/Coolify.
+
+## 📝 Leçons Apprises
+
+1. **Toujours vérifier les bases locales d'abord** avant de diagnostiquer les tunnels
+2. **NocoDB 2026 a changé la sécurité** : `NC_ALLOW_LOCAL_EXTERNAL_DBS=true` est nécessaire
+3. **`docker compose restart` ne recharge PAS le .env** : il faut `--force-recreate`
+4. **Tunnels SSH + Docker = complexe** : privilégier les bases locales quand possible
+
+## 🔗 Connexions Actuelles
+
+### OPEPARTNER (Locale - Fonctionne ✅)
+```
+Host: 10.0.1.23 (ou pk4s888o4wkc8ogokg0sg840)
+Port: 5432
+Database: opepartner
+User: nocodb_opepartner
+Password: OpePartner2024!
+```
+
+### CaloCalc (Tunnel SSH - À corriger ⚠️)
+```
+Host: 10.0.1.1 (tunnel SSH vers VPS OVH)
+Port: 5433
+Database: calocalc_inscription
+User: calocalc_user
+Password: CaloCalc2024
+```
+
+## 🛠️ Commandes Utiles
+
+### Tester connexion PostgreSQL locale
+```bash
 docker run --rm --network coolify postgres:17-alpine \
-  psql 'postgresql://calocalc_user:CaloCalc2024@10.0.1.1:5433/calocalc_inscription' \
-  -c 'SELECT COUNT(*) FROM information_schema.tables;'
-
-# Redémarrer si nécessaire
-kill PID_autossh && relancer
+  psql 'postgresql://nocodb_opepartner:OpePartner2024!@10.0.1.23:5432/opepartner' \
+  -c 'SELECT COUNT(*) FROM clients;'
 ```
 
-### 2. Nettoyer connexions zombies (10 min)
+### Vérifier le tunnel SSH
 ```bash
-# Lister connexions
-docker exec c0408wgcs08kc0w480koowcs psql -U agni_admin -c \
-  "SELECT pid, state, query_start FROM pg_stat_activity WHERE datname='calocalc_inscription';"
-
-# Killer les bloquées
-docker exec c0408wgcs08kc0w480koowcs psql -U agni_admin -c \
-  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE state='idle in transaction';"
-
-# Redémarrer NocoDB
-docker restart nocodb-hgcocsgs8gk44sgo04w04ckk
+ssh root@69.62.110.207 "nc -zv 127.0.0.1 5433"
 ```
 
-### 3. Mode debug NocoDB (15 min)
+### Logs NocoDB
 ```bash
-echo "NC_LOG_LEVEL=debug" >> /data/coolify/services/hgcocsgs8gk44sgo04w04ckk/.env
-echo "DEBUG=nc*" >> /data/coolify/services/hgcocsgs8gk44sgo04w04ckk/.env
-docker restart nocodb-hgcocsgs8gk44sgo04w04ckk
-docker logs -f nocodb-hgcocsgs8gk44sgo04w04ckk
+docker logs --tail 100 nocodb-hgcocsgs8gk44sgo04w04ckk 2>&1 | grep -i error
 ```
 
-### 4. Si échec : Instance NocoDB de test (1h)
-- Nouveau container NocoDB
-- Une seule connexion PostgreSQL simple
-- Valider que ça marche
-- Migrer si OK
+---
 
-### 5. Si échec : Downgrade NocoDB (30 min)
-- Tester version 0.25x ou 0.30x antérieure
-- Vérifier changelogs pour bugs pool
-
-## 📄 Documentation complète
-
-Voir [NOCODB_DEBUG_SESSION_20260515.md](./NOCODB_DEBUG_SESSION_20260515.md) pour :
-- Diagnostic complet
-- Toutes les commandes testées
-- Configuration détaillée
-- Backups créés
+**Date de résolution :** 15 mai 2026  
+**Temps de debug :** ~2h30  
+**Solution finale :** Variable d'environnement + base locale
