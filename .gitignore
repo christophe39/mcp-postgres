@@ -1,56 +1,34 @@
-# Environnement
+# Fichiers de credentials (JAMAIS versionner)
 .env
 .env.local
 .env.*.local
+*.env
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-ENV/
-.venv
+# Documents de rotation temporaires (contiennent des credentials)
+docs/ROTATION-CREDENTIALS-*.md
 
-# Node.js
+# Logs
+*.log
+logs/
+
+# Dépendances
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json
-.pnpm-debug.log*
+__pycache__/
+*.pyc
+.venv/
+venv/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+
+# OS
 .DS_Store
+Thumbs.db
 
-# Secrets et credentials
-*.pem
-*.key
-*.crt
-secrets/
-credentials/
-
-# Backups
-*.sql.backup
-*.dump
-backups/
-
-# Logs
-*.log
-logs/
-
-# Temporary
-tmp/
-temp/
-*.tmp
-
-# Docker volumes locaux (si tests en local)
-docker-volumes/
-.claude/
+# Build
+dist/
+build/
+*.egg-info/
