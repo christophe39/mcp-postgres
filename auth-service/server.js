@@ -28,6 +28,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Middleware pour parser le JSON (pour l'endpoint admin)
+app.use(express.json());
+
 // Parse BasicAuth header
 function parseBasicAuth(authHeader) {
   if (!authHeader || !authHeader.startsWith('Basic ')) {
@@ -111,6 +114,78 @@ app.get('/auth', async (req, res) => {
   }
 });
 
+// Endpoint admin pour créer un utilisateur (protégé par token)
+app.post('/admin/create-user', async (req, res) => {
+  try {
+    // Vérifier le token admin
+    const authHeader = req.headers.authorization;
+    const adminToken = process.env.ADMIN_TOKEN;
+
+    if (!adminToken) {
+      console.error('❌ ADMIN_TOKEN non configuré dans les variables d\'environnement');
+      return res.status(500).json({ error: 'Configuration serveur incorrecte' });
+    }
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token d\'authentification requis' });
+    }
+
+    const token = authHeader.slice(7); // Enlever "Bearer "
+
+    if (token !== adminToken) {
+      console.log('❌ Tentative d\'accès admin avec token invalide');
+      return res.status(403).json({ error: 'Token invalide' });
+    }
+
+    // Récupérer les données du body
+    const { email, password, nom } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email et mot de passe requis' });
+    }
+
+    // Vérifier que l'email n'existe pas déjà
+    const existingUser = await pool.query(
+      'SELECT id FROM utilisateurs WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ error: 'Cet email existe déjà' });
+    }
+
+    // Hasher le mot de passe
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Insérer l'utilisateur
+    const result = await pool.query(
+      `INSERT INTO utilisateurs (email, password_hash, nom, actif)
+       VALUES ($1, $2, $3, true)
+       RETURNING id, email, nom, created_at`,
+      [email, passwordHash, nom || null]
+    );
+
+    const user = result.rows[0];
+
+    console.log(`✅ Utilisateur créé via admin endpoint : ${user.email} (ID: ${user.id})`);
+
+    res.status(201).json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        nom: user.nom,
+        created_at: user.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur création utilisateur:', error);
+    res.status(500).json({ error: 'Erreur interne du serveur' });
+  }
+});
+
 // Healthcheck endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -141,7 +216,7 @@ app.get('/test', async (req, res) => {
 app.use((req, res) => {
   res.status(404).json({
     error: 'Endpoint non trouvé',
-    available_endpoints: ['/auth', '/health', '/test']
+    available_endpoints: ['/auth', '/health', '/admin/create-user', '/test']
   });
 });
 
