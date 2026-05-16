@@ -1,0 +1,23 @@
+http:
+  routers:
+    exca-api-https:
+      rule: "Host(`exca-api.agnisolution.fr`)"
+      entryPoints:
+        - https
+      service: excalidraw-proxy
+      tls:
+        certResolver: letsencrypt
+
+    exca-api-http:
+      rule: "Host(`exca-api.agnisolution.fr`)"
+      entryPoints:
+        - http
+      service: excalidraw-proxy
+      middlewares:
+        - redirect-to-https@file
+
+  services:
+    excalidraw-proxy:
+      loadBalancer:
+        servers:
+          - url: "http://excalidraw-proxy:80"

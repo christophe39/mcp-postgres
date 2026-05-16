@@ -22,11 +22,9 @@ services:
 
   # Proxy adaptateur (traduit les URLs entre frontend et backend)
   proxy:
-    image: nginx:alpine
+    image: excalidraw-proxy:latest
     container_name: excalidraw-proxy
     restart: unless-stopped
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     labels:
       - traefik.enable=true
       - traefik.http.routers.excalidraw-proxy.rule=Host(`exca-api.agnisolution.fr`)
