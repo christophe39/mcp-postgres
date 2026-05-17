@@ -1,87 +1,188 @@
-# MCP Custom Excalidraw
+# MCP Excalidraw OPEPARTNER
 
-> Serveur MCP remote HTTPS pour la génération automatisée de schémas Excalidraw via Claude
+> MCP remote pour générer des schémas stratégiques Excalidraw depuis Claude (web, Mac, iPad, iPhone)
 
 ## 🎯 Objectif
 
-Exposer des outils Claude permettant de créer, modifier et rechercher des scènes Excalidraw, avec intégration automatique dans NocoDB et AFFiNE.
+Permettre de créer des schémas visuels (BMC, PESTEL, SWOT, organigrammes) via prompts Claude, avec :
+- Chiffrement E2E (AES-GCM) compatible avec le frontend Excalidraw
+- Stockage pérenne dans PostgreSQL
+- Traçabilité dans NocoDB (table `schemas_excalidraw`)
+- Documentation automatique dans AFFiNE (workspace OPEPARTNER)
 
-## 🛠️ Outils exposés (MVP)
+## 🏗️ Architecture
 
-### CRUD de base
-- `create_scene(json, title, contexte, client?, mission?, document_type)` — Création scène + upsert NocoDB + doc AFFiNE
-- `get_scene(id)` — Récupération du JSON
-- `update_scene(id, json)` — Modification (version++)
-- `list_scenes(filter?)` — Recherche multi-critères
+```
+Claude (web/Mac/iPad/iPhone)
+        ↓ HTTPS + auth
+MCP Excalidraw (mcp-excalidraw.agnisolution.fr)
+        ↓
+    ┌───┴─────┬──────────┬───────────┐
+    ▼         ▼          ▼           ▼
+ Backend  Postgres   NocoDB      AFFiNE
+ :8080    10.0.1.23  API         GraphQL
+```
 
-### Export
-- `export_scene_png(id)` — Export PNG
-- `export_scene_svg(id)` — Export SVG
+## 📦 Stack technique
 
-### Templates
-- `create_bmc(client_name?, mission?)` — Business Model Canvas pré-rempli
-- `create_pestel(client_name?, mission?)` — Analyse PESTEL
-- `create_swot(client_name?, mission?)` — Matrice SWOT
-- `create_organigramme(client_name?, mission?)` — Organigramme type
+- **Langage** : Python 3.11+
+- **Framework MCP** : FastMCP (transport HTTP/SSE)
+- **Base de données** : PostgreSQL 17 (container `pk4s888o4wkc8ogokg0sg840`)
+- **Déploiement** : Docker + Coolify + Traefik
 
-## 🏗️ Architecture technique
+## 🔐 Sécurité
 
-**Stack à définir** :
-- Option A : **Python + FastMCP** (recommandé pour rapidité)
-- Option B : **TypeScript + MCP SDK** (cohérence avec stack Excalidraw)
+- **User PostgreSQL dédié** : `mcp_excalidraw` (droits minimaux, pas de DDL)
+- **Chiffrement** : AES-GCM (reproduction exacte du format frontend)
+- **Auth** : OAuth 2.1 ou ForwardAuth + bearer token
+- **Requêtes SQL** : paramétrées partout (aucune concaténation)
+- **Validation** : inputs typés, bornés, whitelist strict
 
-**Déploiement** :
-- Conteneur Docker via Coolify
-- Exposition HTTPS : `mcp-excalidraw.agnisolution.fr`
-- Traefik + Let's Encrypt automatique
+## 🚀 Installation locale
 
-**Intégrations** :
-- PostgreSQL `opepartner` (table `Schemas_Excalidraw` + `Clients`)
-- NocoDB API (upsert Client, insert Schemas_Excalidraw)
-- AFFiNE API (création/maj docs dans workspace OPEPARTNER)
-- Excalidraw Storage Backend (push/pull JSON)
+```bash
+# Créer un environnement virtuel
+python3.11 -m venv venv
+source venv/bin/activate
 
-## 📋 Workflow type
+# Installer les dépendances
+pip install -e ".[dev]"
 
-Prompt utilisateur : *"Crée un BMC pour Client Dupont SAS"*
+# Copier le fichier .env.example
+cp .env.example .env
 
-1. MCP appelle `create_bmc("Dupont SAS")`
-2. Génère JSON Excalidraw (9 cases BMC pré-structurées)
-3. Push JSON vers Excalidraw Storage Backend → récupère `scene_id`
-4. Upsert Client "Dupont SAS" dans NocoDB → récupère `client_id`
-5. Insert ligne dans `Schemas_Excalidraw` :
-   - `excalidraw_id`, `client_id`, `document_type=BMC_visuel`
-   - `edit_url`, `preview_url`, `confidentiel=true`
-6. Crée doc AFFiNE sous `03 — Clients / Missions / Dupont SAS / [BMC]`
-   - Embed preview Excalidraw + lien d'édition
-7. Retourne à Claude les URLs (édition + preview)
+# Éditer .env avec les vraies valeurs
+# (DATABASE_URL, NOCODB_TOKEN, AFFINE_TOKEN, etc.)
 
-## 🔐 Variables d'environnement
+# Lancer les tests
+pytest
+```
 
-Voir `.env.example` dans ce dossier.
+## 🛠️ Outils MCP disponibles
 
-Essentielles :
-- `DATABASE_URL` — Connexion PostgreSQL
-- `NOCODB_URL` + `NOCODB_TOKEN`
-- `AFFINE_API_URL` + `AFFINE_TOKEN` + `AFFINE_WORKSPACE_OPEPARTNER`
-- `EXCALIDRAW_BACKEND_URL`
-- `MCP_EXCALIDRAW_SECRET` — Auth du MCP remote
+### Création depuis templates
+- `create_bmc(client_name, mission_name?, ...)`
+- `create_pestel(client_name, mission_name?, ...)`
+- `create_swot(client_name, mission_name?, ...)`
+- `create_from_template(template_name, data, metadata?)`
 
-## 🚀 Développement
+### Manipulation de scènes
+- `get_scene(scene_id)` — déchiffre et retourne le JSON
+- `update_scene(scene_id, data)` — modifie, re-chiffre, incrémente version
+- `list_scenes(client?, document_type?, status?, limit=10, offset=0)`
+- `delete_scene(scene_id, confirm=False)` — purge réelle (RGPD)
 
-*À compléter lors du démarrage du développement (Phase 5)*
+### Templates et NocoDB
+- `list_templates(categorie?)`
+- `get_template_placeholders(template_name)`
+- `find_or_create_client(nom, secteur?)`
+- `create_mission(client_id, nom, date_debut?, date_fin?)`
 
-## 📝 TODO
+### Exports (asynchrones)
+- `export_scene_png(scene_id, width?, height?)`
+- `export_scene_svg(scene_id)`
 
-- [ ] Choisir stack (Python FastMCP vs TypeScript MCP SDK)
-- [ ] Bootstrap projet + structure
-- [ ] Implémenter outils CRUD
-- [ ] Implémenter templates (BMC, PESTEL, SWOT)
-- [ ] Tests unitaires des outils
-- [ ] Dockerfile + docker-compose
-- [ ] Déploiement Coolify
-- [ ] Configuration Connectors Claude.ai
+## 📁 Structure du projet
+
+```
+mcp-excalidraw/
+├── pyproject.toml
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+├── README.md
+├── src/
+│   ├── server.py             # entry point FastMCP (transport HTTP)
+│   ├── config.py             # chargement + validation des env vars
+│   ├── auth.py               # middleware d'authentification
+│   ├── crypto.py             # chiffrement AES-GCM compatible frontend
+│   ├── clients/
+│   │   ├── database.py       # pool Postgres, requêtes paramétrées
+│   │   ├── excalidraw.py     # POST/GET backend storage
+│   │   ├── nocodb.py         # API NocoDB (traçabilité)
+│   │   └── affine.py         # API/GraphQL AFFiNE (doc auto)
+│   ├── templates/
+│   │   ├── manager.py        # get_template, fill_template
+│   │   ├── bmc.json
+│   │   ├── pestel.json
+│   │   └── ...
+│   ├── tools/
+│   │   ├── scenes.py         # create/get/update/list/delete_scene
+│   │   ├── frameworks.py     # create_bmc/pestel/swot/...
+│   │   └── nocodb_tools.py   # find_or_create_client, create_mission
+│   ├── orchestration.py      # logique transactionnelle multi-systèmes
+│   └── utils.py              # generate_id, validation, sanitization
+└── tests/
+    ├── test_crypto.py        # round-trip chiffrement vs frontend
+    ├── test_templates.py
+    └── test_orchestration.py
+```
+
+## 🔄 Workflow de développement
+
+**Phase H.1 — Fondations (en cours)**
+- [x] Structure projet + pyproject + .gitignore + .env.example
+- [ ] Script SQL user `mcp_excalidraw` (droits minimaux)
+- [ ] `config.py` : chargement + validation env vars
+- [ ] `clients/database.py` : pool Postgres, requêtes paramétrées
+- [ ] Validation : connexion Postgres OK avec user restreint
+
+**Phase H.2 — Chiffrement (critique)**
+- [ ] Étude code source frontend (format exact AES-GCM)
+- [ ] `crypto.py` : encrypt/decrypt compatibles
+- [ ] `tests/test_crypto.py` : round-trip bidirectionnel
+- [ ] Validation : scène MCP → lisible frontend, et inversement
+
+**Phase H.3 — Clients d'intégration**
+- [ ] `clients/excalidraw.py` : POST/GET backend
+- [ ] `clients/nocodb.py` : find/create/insert via API
+- [ ] `clients/affine.py` : investiguer API/GraphQL
+- [ ] Validation : chaque client testé isolément
+
+**Phase H.4 — Outils CRUD + orchestration**
+- [ ] `tools/scenes.py` : create/get/update/list/delete_scene
+- [ ] `orchestration.py` : séquence complète + gestion d'erreurs
+- [ ] Validation : scène simple bout-en-bout (chiffrée, BDD, NocoDB)
+
+**Phase H.5 — Templates frameworks**
+- [ ] Créer templates JSON (BMC, PESTEL, SWOT, etc.)
+- [ ] `templates/manager.py` : fill_template avec placeholders
+- [ ] `tools/frameworks.py` : create_bmc/pestel/swot
+- [ ] Validation : BMC complet généré et lisible frontend
+
+**Phase H.6 — Déploiement remote**
+- [ ] Dockerfile + healthcheck `/health`
+- [ ] Déploiement Coolify + sous-domaine `mcp-excalidraw.agnisolution.fr`
+- [ ] Mise en place auth (OAuth 2.1 ou ForwardAuth)
+- [ ] Validation : endpoint HTTPS accessible, auth OK
+
+**Phase H.7 — Intégration Claude.ai**
+- [ ] Ajout dans Claude.ai Connectors
+- [ ] Tests cross-device (web, Mac, iPhone)
+- [ ] Validation : workflow complet fonctionnel depuis mobile
+
+## 📚 Documentation
+
+- **Contexte global** : [CLAUDE.md](../CLAUDE.md)
+- **Spec technique** : [BRIEF-PROJET-MCP-EXCALIDRAW.md](../docs/BRIEF-PROJET-MCP-EXCALIDRAW.md)
+- **Architecture** : [ARCHITECTURE.md](../docs/ARCHITECTURE.md)
+- **Troubleshooting** : [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)
+
+## 📝 Règles de développement
+
+1. **Sécurité d'abord** : user dédié, requêtes paramétrées, validation stricte
+2. **Jamais de credentials dans Git** : `.env` en gitignore
+3. **Tester chaque phase** avant la suivante (pas de big bang)
+4. **Documenter au fil de l'eau** : README + docstrings
+5. **Arbitrages respectés** : remote HTTPS + chiffrement E2E + Python/FastMCP
+
+## 📞 Contact
+
+- **Auteur** : Christophe Martin (cmartin@agniconsult.fr)
+- **Projet** : OPEPARTNER Stack
+- **Repository** : github.com/christophe39/excalidraw
 
 ---
 
-*Dernière mise à jour : 15 mai 2026*
+*Dernière mise à jour : 16 mai 2026*

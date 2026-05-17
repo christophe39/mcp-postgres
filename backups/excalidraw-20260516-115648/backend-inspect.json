@@ -1,0 +1,237 @@
+[
+    {
+        "Id": "3d2319cf95c4f0f1856fbc472fa4533b510e8e2fc47af20d4c73fc2d072ff96b",
+        "Created": "2026-05-15T19:40:21.570890124Z",
+        "Path": "npm",
+        "Args": [
+            "run",
+            "start:prod"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 409441,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-05-15T19:40:21.600325004Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:6430e7749091e97d6565145468b68d7028f413cc1b2d66376e5dd42a775edd69",
+        "ResolvConfPath": "/var/lib/docker/containers/3d2319cf95c4f0f1856fbc472fa4533b510e8e2fc47af20d4c73fc2d072ff96b/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/3d2319cf95c4f0f1856fbc472fa4533b510e8e2fc47af20d4c73fc2d072ff96b/hostname",
+        "HostsPath": "/var/lib/docker/containers/3d2319cf95c4f0f1856fbc472fa4533b510e8e2fc47af20d4c73fc2d072ff96b/hosts",
+        "LogPath": "/var/lib/docker/containers/3d2319cf95c4f0f1856fbc472fa4533b510e8e2fc47af20d4c73fc2d072ff96b/3d2319cf95c4f0f1856fbc472fa4533b510e8e2fc47af20d4c73fc2d072ff96b-json.log",
+        "Name": "/excalidraw-backend",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-file": "3",
+                    "max-size": "10m"
+                }
+            },
+            "NetworkMode": "coolify",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": null,
+            "DnsSearch": null,
+            "ExtraHosts": [],
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": null,
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/asound",
+                "/proc/acpi",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/sys/firmware",
+                "/sys/devices/virtual/powercap"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "GraphDriver": {
+            "Data": {
+                "ID": "3d2319cf95c4f0f1856fbc472fa4533b510e8e2fc47af20d4c73fc2d072ff96b",
+                "LowerDir": "/var/lib/docker/overlay2/d8ef345edd3510bbf98615b4b6962cde1e20f3db363092dc2c0ac854f79c903e-init/diff:/var/lib/docker/overlay2/8f56f718aa6802924946a195cea445470b6efa5281aa09a554f3dfd015af8ce1/diff:/var/lib/docker/overlay2/cc3bbba2fcb53be3a2c417a8575b8c2fe9cd7652fcd46073bf2eed366c8a13b7/diff:/var/lib/docker/overlay2/597aea5526f2abb776ec1f0a14d37ae1d079c78c4a604a2a9a8e01dae01d6927/diff:/var/lib/docker/overlay2/6ca638006134030bd24a9de501aea2a6cbece66879f3be70d9f542195319e4a4/diff:/var/lib/docker/overlay2/6e0dda26bbf00d976efda78ecb5f0df812686f2b3a79befb16af828772d14049/diff:/var/lib/docker/overlay2/2e05f95a6b0962c326e1f1770464e752197a54a865ffd13a0decf4585e1dccc1/diff:/var/lib/docker/overlay2/dd45e474bb564d05c14f6aa423adadcbd03b657e3704e826c85fbe1bc4490ba7/diff:/var/lib/docker/overlay2/64f6d01682ff500ffc189e5a5f1003dbed39d63c0eb24d84f411a1921228fc37/diff",
+                "MergedDir": "/var/lib/docker/overlay2/d8ef345edd3510bbf98615b4b6962cde1e20f3db363092dc2c0ac854f79c903e/merged",
+                "UpperDir": "/var/lib/docker/overlay2/d8ef345edd3510bbf98615b4b6962cde1e20f3db363092dc2c0ac854f79c903e/diff",
+                "WorkDir": "/var/lib/docker/overlay2/d8ef345edd3510bbf98615b4b6962cde1e20f3db363092dc2c0ac854f79c903e/work"
+            },
+            "Name": "overlay2"
+        },
+        "Mounts": [],
+        "Config": {
+            "Hostname": "3d2319cf95c4",
+            "Domainname": "",
+            "User": "node",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "ExposedPorts": {
+                "8080/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "STORAGE_URI=postgresql://excalidraw_backend:aMU2bB7AFT0BNeOVbmW5Zey8Qnk2G6tXyTe1oqpC7PA=@10.0.1.23:5432/excalidraw_storage",
+                "PORT=8080",
+                "NODE_ENV=production",
+                "CORS_ALLOWED_ORIGINS=https://excalidraw.agnisolution.fr,https://mcp-excalidraw.agnisolution.fr",
+                "ID_LENGTH=12",
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NODE_VERSION=16.13.2",
+                "YARN_VERSION=1.22.15"
+            ],
+            "Cmd": null,
+            "Image": "kiliandeca/excalidraw-storage-backend:latest",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": [
+                "npm",
+                "run",
+                "start:prod"
+            ],
+            "OnBuild": null,
+            "Labels": {
+                "com.docker.compose.config-hash": "48b0a96063324e56fe3254fefbbe5a6c83dd71e00c3f582ced020b1560d8ee3f",
+                "com.docker.compose.container-number": "1",
+                "com.docker.compose.depends_on": "",
+                "com.docker.compose.image": "sha256:6430e7749091e97d6565145468b68d7028f413cc1b2d66376e5dd42a775edd69",
+                "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project": "o8wsgoowkcogkgk0g8o4g8s0",
+                "com.docker.compose.project.config_files": "/data/coolify/services/o8wsgoowkcogkgk0g8o4g8s0/docker-compose.yml",
+                "com.docker.compose.project.working_dir": "/data/coolify/services/o8wsgoowkcogkgk0g8o4g8s0",
+                "com.docker.compose.service": "backend",
+                "com.docker.compose.version": "2.35.1"
+            }
+        },
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "6ef97087efa0f457744d1c81af4da8076ff3cbcf7ef2501503e92663594fdc2e",
+            "SandboxKey": "/var/run/docker/netns/6ef97087efa0",
+            "Ports": {
+                "8080/tcp": null
+            },
+            "HairpinMode": false,
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "EndpointID": "",
+            "Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "",
+            "IPPrefixLen": 0,
+            "IPv6Gateway": "",
+            "MacAddress": "",
+            "Networks": {
+                "coolify": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "excalidraw-backend",
+                        "backend"
+                    ],
+                    "MacAddress": "6a:2c:5b:5b:09:ea",
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "3424f1c0a20db5c8f9f0157c020cfe20b2fbeee49edd80106bd0b40184efc36c",
+                    "EndpointID": "10eda1c0fc16ed600a866b5865e339548b19f6e1ed19cbe2bac540d8f1993e72",
+                    "Gateway": "10.0.1.1",
+                    "IPAddress": "10.0.1.29",
+                    "IPPrefixLen": 24,
+                    "IPv6Gateway": "fddf:8be5:11b::1",
+                    "GlobalIPv6Address": "fddf:8be5:11b::1d",
+                    "GlobalIPv6PrefixLen": 64,
+                    "DNSNames": [
+                        "excalidraw-backend",
+                        "backend",
+                        "3d2319cf95c4"
+                    ]
+                }
+            }
+        }
+    }
+]

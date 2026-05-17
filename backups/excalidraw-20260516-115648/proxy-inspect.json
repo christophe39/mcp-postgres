@@ -1,0 +1,292 @@
+[
+    {
+        "Id": "0442b4bfbc6dabf830ca175841d79ec43d9d581f3925dd89077dd89caf00fd3d",
+        "Created": "2026-05-15T19:01:43.43470751Z",
+        "Path": "/docker-entrypoint.sh",
+        "Args": [
+            "nginx",
+            "-g",
+            "daemon off;"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 639451,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-05-16T09:52:02.08404776Z",
+            "FinishedAt": "2026-05-16T09:52:01.706843284Z",
+            "Health": {
+                "Status": "unhealthy",
+                "FailingStreak": 11,
+                "Log": [
+                    {
+                        "Start": "2026-05-16T09:55:07.845944865Z",
+                        "End": "2026-05-16T09:55:07.894442544Z",
+                        "ExitCode": 1,
+                        "Output": "wget: can't connect to remote host: Connection refused\n"
+                    },
+                    {
+                        "Start": "2026-05-16T09:55:37.895459848Z",
+                        "End": "2026-05-16T09:55:37.934540492Z",
+                        "ExitCode": 1,
+                        "Output": "wget: can't connect to remote host: Connection refused\n"
+                    },
+                    {
+                        "Start": "2026-05-16T09:56:07.936194496Z",
+                        "End": "2026-05-16T09:56:07.992160423Z",
+                        "ExitCode": 1,
+                        "Output": "wget: can't connect to remote host: Connection refused\n"
+                    },
+                    {
+                        "Start": "2026-05-16T09:56:37.993805158Z",
+                        "End": "2026-05-16T09:56:38.061598352Z",
+                        "ExitCode": 1,
+                        "Output": "wget: can't connect to remote host: Connection refused\n"
+                    },
+                    {
+                        "Start": "2026-05-16T09:57:08.063252603Z",
+                        "End": "2026-05-16T09:57:08.146338173Z",
+                        "ExitCode": 1,
+                        "Output": "wget: can't connect to remote host: Connection refused\n"
+                    }
+                ]
+            }
+        },
+        "Image": "sha256:77715037f1f39c0d6f627511c2a0cfcaabfa2b844c8d0472a454f7b66c0face5",
+        "ResolvConfPath": "/var/lib/docker/containers/0442b4bfbc6dabf830ca175841d79ec43d9d581f3925dd89077dd89caf00fd3d/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/0442b4bfbc6dabf830ca175841d79ec43d9d581f3925dd89077dd89caf00fd3d/hostname",
+        "HostsPath": "/var/lib/docker/containers/0442b4bfbc6dabf830ca175841d79ec43d9d581f3925dd89077dd89caf00fd3d/hosts",
+        "LogPath": "/var/lib/docker/containers/0442b4bfbc6dabf830ca175841d79ec43d9d581f3925dd89077dd89caf00fd3d/0442b4bfbc6dabf830ca175841d79ec43d9d581f3925dd89077dd89caf00fd3d-json.log",
+        "Name": "/excalidraw-proxy",
+        "RestartCount": 0,
+        "Driver": "overlay2",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-file": "3",
+                    "max-size": "10m"
+                }
+            },
+            "NetworkMode": "coolify",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "unless-stopped",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": null,
+            "DnsSearch": null,
+            "ExtraHosts": [],
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": null,
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/asound",
+                "/proc/acpi",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/sys/firmware",
+                "/sys/devices/virtual/powercap"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "GraphDriver": {
+            "Data": {
+                "ID": "0442b4bfbc6dabf830ca175841d79ec43d9d581f3925dd89077dd89caf00fd3d",
+                "LowerDir": "/var/lib/docker/overlay2/cb5c71175a795ad17ebb456c22b9dd7916596157e852e106a10d361a0b9b9a7f-init/diff:/var/lib/docker/overlay2/8adfd4c9a0cb43f3463062792fd7496757a76a6938f3cc1d6a9c017f97b51366/diff:/var/lib/docker/overlay2/cff9770d66b6f5fd69dfdfbdf68c75f0a130806a97eeed6b68e1957788ae837f/diff:/var/lib/docker/overlay2/ed56e9e0de3b62beea38ca70b461e719b55c7d0b77dbae12602cdbae7bc9124e/diff:/var/lib/docker/overlay2/bcb58c5bfbd60e61d75383267e218cac4f8aecdd2a5f9f7249d4ced460b3bb1a/diff:/var/lib/docker/overlay2/86699fefc08459f7cbb172aaa0f8681ba55795f76aee513719634fccc04cbef3/diff:/var/lib/docker/overlay2/f0fa9c60a846ab11f143b117b32444a432c3d91642935b76bc80f8dbf63104ec/diff:/var/lib/docker/overlay2/56dc602fc2a0a54b6b1e80d35d15f6d9b779de2a72ecf4452a048eb008b9dafc/diff:/var/lib/docker/overlay2/c402bbc3a8886777d778f47c08c8f860ff8e16859857fdf84f6fc5fbff33afe3/diff:/var/lib/docker/overlay2/247f566f05cad2924df2fc08c41415a5b106c368570ff9f67c890bea5ca712e6/diff",
+                "MergedDir": "/var/lib/docker/overlay2/cb5c71175a795ad17ebb456c22b9dd7916596157e852e106a10d361a0b9b9a7f/merged",
+                "UpperDir": "/var/lib/docker/overlay2/cb5c71175a795ad17ebb456c22b9dd7916596157e852e106a10d361a0b9b9a7f/diff",
+                "WorkDir": "/var/lib/docker/overlay2/cb5c71175a795ad17ebb456c22b9dd7916596157e852e106a10d361a0b9b9a7f/work"
+            },
+            "Name": "overlay2"
+        },
+        "Mounts": [],
+        "Config": {
+            "Hostname": "0442b4bfbc6d",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "ExposedPorts": {
+                "80/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NGINX_VERSION=1.31.0",
+                "PKG_RELEASE=1",
+                "DYNPKG_RELEASE=1",
+                "NJS_VERSION=0.9.8",
+                "NJS_RELEASE=1",
+                "ACME_VERSION=0.4.1"
+            ],
+            "Cmd": [
+                "nginx",
+                "-g",
+                "daemon off;"
+            ],
+            "Healthcheck": {
+                "Test": [
+                    "CMD-SHELL",
+                    "wget -q --spider http://localhost/health || exit 1"
+                ],
+                "Interval": 30000000000,
+                "Timeout": 3000000000,
+                "StartPeriod": 5000000000
+            },
+            "Image": "excalidraw-proxy:latest",
+            "Volumes": null,
+            "WorkingDir": "/",
+            "Entrypoint": [
+                "/docker-entrypoint.sh"
+            ],
+            "OnBuild": null,
+            "Labels": {
+                "com.docker.compose.config-hash": "df5f4d31c0b3f327d5c7cffa0fdc29e6aaa3b5424b7ca8e8955929b64e6f0188",
+                "com.docker.compose.container-number": "1",
+                "com.docker.compose.depends_on": "backend:service_started:false",
+                "com.docker.compose.image": "sha256:77715037f1f39c0d6f627511c2a0cfcaabfa2b844c8d0472a454f7b66c0face5",
+                "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project": "o8wsgoowkcogkgk0g8o4g8s0",
+                "com.docker.compose.project.config_files": "/data/coolify/services/o8wsgoowkcogkgk0g8o4g8s0/docker-compose.yml",
+                "com.docker.compose.project.working_dir": "/data/coolify/services/o8wsgoowkcogkgk0g8o4g8s0",
+                "com.docker.compose.service": "proxy",
+                "com.docker.compose.version": "2.35.1",
+                "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>",
+                "traefik.enable": "true",
+                "traefik.http.routers.excalidraw-proxy.entrypoints": "https",
+                "traefik.http.routers.excalidraw-proxy.rule": "Host(`exca-api.agnisolution.fr`)",
+                "traefik.http.routers.excalidraw-proxy.tls": "true",
+                "traefik.http.routers.excalidraw-proxy.tls.certresolver": "letsencrypt",
+                "traefik.http.services.excalidraw-proxy.loadbalancer.server.port": "80"
+            },
+            "StopSignal": "SIGQUIT"
+        },
+        "NetworkSettings": {
+            "Bridge": "",
+            "SandboxID": "8fa94e0d9ed0fc6768ec254236e476562df01088ec264f7017d8441a69451b0b",
+            "SandboxKey": "/var/run/docker/netns/8fa94e0d9ed0",
+            "Ports": {
+                "80/tcp": null
+            },
+            "HairpinMode": false,
+            "LinkLocalIPv6Address": "",
+            "LinkLocalIPv6PrefixLen": 0,
+            "SecondaryIPAddresses": null,
+            "SecondaryIPv6Addresses": null,
+            "EndpointID": "",
+            "Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "IPAddress": "",
+            "IPPrefixLen": 0,
+            "IPv6Gateway": "",
+            "MacAddress": "",
+            "Networks": {
+                "coolify": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "excalidraw-proxy",
+                        "proxy"
+                    ],
+                    "MacAddress": "72:16:0c:ee:fa:8f",
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "3424f1c0a20db5c8f9f0157c020cfe20b2fbeee49edd80106bd0b40184efc36c",
+                    "EndpointID": "eed47bd93ab91375b8fdc897ede1afa3c8b5d0dae72a607ddbc9f600bfdf0be2",
+                    "Gateway": "10.0.1.1",
+                    "IPAddress": "10.0.1.31",
+                    "IPPrefixLen": 24,
+                    "IPv6Gateway": "fddf:8be5:11b::1",
+                    "GlobalIPv6Address": "fddf:8be5:11b::1f",
+                    "GlobalIPv6PrefixLen": 64,
+                    "DNSNames": [
+                        "excalidraw-proxy",
+                        "proxy",
+                        "0442b4bfbc6d"
+                    ]
+                }
+            }
+        }
+    }
+]

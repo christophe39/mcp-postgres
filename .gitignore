@@ -3,9 +3,12 @@
 .env.local
 .env.*.local
 *.env
+.env.*
 
 # Documents de rotation temporaires (contiennent des credentials)
 docs/ROTATION-CREDENTIALS-*.md
+IMPACT-CHANGEMENT-PASSWORD.md
+MISE-A-JOUR-NOCODB.md
 
 # Logs
 *.log
