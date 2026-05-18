@@ -6,22 +6,30 @@
 
 Permettre de créer des schémas visuels (BMC, PESTEL, SWOT, organigrammes) via prompts Claude, avec :
 - Chiffrement E2E (AES-GCM) compatible avec le frontend Excalidraw
-- Stockage pérenne dans PostgreSQL
-- Traçabilité dans NocoDB (table `schemas_excalidraw`)
-- Documentation automatique dans AFFiNE (workspace OPEPARTNER)
+- Stockage pérenne dans PostgreSQL (user `mcp_excalidraw`, moindre privilège)
+- Traçabilité dans NocoDB base OPEPARTNER (table `schemas_excalidraw`)
+- Orchestration multi-MCP : Excalidraw+NocoDB (ce MCP) + AFFiNE (MCP séparé)
 
 ## 🏗️ Architecture
 
 ```
 Claude (web/Mac/iPad/iPhone)
-        ↓ HTTPS + auth
-MCP Excalidraw (mcp-excalidraw.agnisolution.fr)
         ↓
-    ┌───┴─────┬──────────┬───────────┐
-    ▼         ▼          ▼           ▼
- Backend  Postgres   NocoDB      AFFiNE
- :8080    10.0.1.23  API         GraphQL
+   ┌────┴─────────────┐
+   ▼                  ▼
+MCP Excalidraw    MCP AFFiNE (DAWNCR0W)
+(remote HTTPS)    (Claude Desktop local)
+   ↓
+┌──┴────┬────────┬────────┐
+▼       ▼        ▼        ▼
+Backend Postgres NocoDB  Templates
+:8080   :5432    API     JSON
 ```
+
+**Orchestration multi-MCP**:
+- **MCP Excalidraw** (ce repo) : création scènes chiffrées + traçabilité NocoDB
+- **MCP AFFiNE** (externe, `affine-opepartner`) : gestion docs workspace OPEPARTNER
+- **Liens**: NocoDB stocke `affine_doc_id` pour relier scènes ↔ docs AFFiNE
 
 ## 📦 Stack technique
 
@@ -52,7 +60,7 @@ pip install -e ".[dev]"
 cp .env.example .env
 
 # Éditer .env avec les vraies valeurs
-# (DATABASE_URL, NOCODB_TOKEN, AFFINE_TOKEN, etc.)
+# (DATABASE_URL, NOCODB_TOKEN, EXCALIDRAW_FRONTEND_URL, etc.)
 
 # Lancer les tests
 pytest
@@ -100,8 +108,7 @@ mcp-excalidraw/
 │   ├── clients/
 │   │   ├── database.py       # pool Postgres, requêtes paramétrées
 │   │   ├── excalidraw.py     # POST/GET backend storage
-│   │   ├── nocodb.py         # API NocoDB (traçabilité)
-│   │   └── affine.py         # API/GraphQL AFFiNE (doc auto)
+│   │   └── nocodb.py         # API NocoDB (traçabilité)
 │   ├── templates/
 │   │   ├── manager.py        # get_template, fill_template
 │   │   ├── bmc.json
@@ -134,11 +141,11 @@ mcp-excalidraw/
 - [ ] `tests/test_crypto.py` : round-trip bidirectionnel
 - [ ] Validation : scène MCP → lisible frontend, et inversement
 
-**Phase H.3 — Clients d'intégration**
-- [ ] `clients/excalidraw.py` : POST/GET backend
-- [ ] `clients/nocodb.py` : find/create/insert via API
-- [ ] `clients/affine.py` : investiguer API/GraphQL
-- [ ] Validation : chaque client testé isolément
+**Phase H.3 — Clients d'intégration** ✅
+- [x] `clients/database.py` : pool Postgres, requêtes paramétrées
+- [x] `clients/excalidraw.py` : POST/GET backend + chiffrement E2E
+- [x] `clients/nocodb.py` : find/create/insert via API
+- [x] Validation : chaque client testé isolément (46 scènes, round-trip prouvé, CRUD NocoDB)
 
 **Phase H.4 — Outils CRUD + orchestration**
 - [ ] `tools/scenes.py` : create/get/update/list/delete_scene
@@ -185,4 +192,4 @@ mcp-excalidraw/
 
 ---
 
-*Dernière mise à jour : 16 mai 2026*
+*Dernière mise à jour : 18 mai 2026*
