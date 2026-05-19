@@ -7,6 +7,13 @@ env/
 
 # Environnement local (.env contient secrets locaux, pas prod)
 .env
+.env.*
+
+# macOS
+.DS_Store
+
+# Scripts de test locaux
+test_*.sh
 
 # Cache Python
 __pycache__/
