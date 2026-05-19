@@ -66,6 +66,77 @@ cp .env.example .env
 pytest
 ```
 
+## 🖥️ Démarrage serveur
+
+### Mode local (H.4.4 — Test)
+
+**Architecture** : Serveur HTTP/SSE sur `localhost:8000`, auth désactivée.
+
+```bash
+# Démarrer le serveur MCP
+python3 server.py
+
+# Le serveur démarre sur http://localhost:8000
+# Endpoint healthcheck : http://localhost:8000/health
+
+# Dans un autre terminal, lancer les tests
+python3 tests/test_server_local.py
+```
+
+**Configuration `.env` (mode local)** :
+```env
+# PostgreSQL
+DATABASE_URL=postgresql://mcp_excalidraw:***@localhost:5433/excalidraw_storage
+
+# NocoDB
+NOCODB_URL=https://nocodb.agnisolution.fr
+NOCODB_TOKEN=***
+NOCODB_BASE_OPEPARTNER=p8qmnd5s0q9mtww
+
+# Serveur MCP
+MCP_HOST=0.0.0.0
+MCP_PORT=8000
+```
+
+### Mode remote (H.6 — Production)
+
+**Architecture** : Serveur déployé sur VPS via Coolify + Traefik, auth activée.
+
+**URL** : `https://mcp-excalidraw.agnisolution.fr`
+
+**Changements config** :
+1. **Auth activée** : Middleware FastAPI vérifie bearer token sur tous les endpoints (sauf `/health`)
+2. **HTTPS** : Traefik gère SSL (Let's Encrypt)
+3. **Healthcheck Coolify** : `GET /health` (timeout 10s, interval 30s)
+
+**Déploiement** :
+```bash
+# Via Coolify UI :
+# 1. Créer nouvelle app "Resource" → Docker Compose
+# 2. Repository : ce repo Git
+# 3. Dockerfile : ./Dockerfile
+# 4. Port interne : 8000
+# 5. Health Check Path : /health
+# 6. Variables d'environnement : copier depuis .env
+# 7. Ajouter : AUTH_ENABLED=true, AUTH_SECRET_KEY=***
+```
+
+**Configuration `.env` (mode remote)** :
+```env
+# Identique au local, PLUS :
+AUTH_ENABLED=true
+AUTH_SECRET_KEY=***  # Clé secrète pour validation tokens
+AUTH_TOKEN_EXPIRY=3600  # 1h
+ALLOWED_ORIGINS=https://claude.ai,https://claude.com  # CORS
+```
+
+**Auth middleware (H.6)** :
+- Décommenter le bloc `auth_middleware` dans `server.py`
+- Tokens générés via endpoint `/auth/token` (à créer en H.6)
+- Validation JWT ou API key selon stratégie choisie
+
+---
+
 ## 🛠️ Outils MCP disponibles
 
 ### Création depuis templates

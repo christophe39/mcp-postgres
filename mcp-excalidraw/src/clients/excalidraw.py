@@ -78,14 +78,15 @@ class ExcalidrawClient:
     async def create_scene(
         self,
         scene_json: str,
-        scene_id: Optional[str] = None
+        scene_id: Optional[str] = None,
+        encryption_key: Optional[bytes] = None
     ) -> Tuple[str, str, str]:
         """
         Crée une scène Excalidraw chiffrée dans keyv
 
         Workflow:
-        1. Génère encryption key (16 bytes)
-        2. Compresse + chiffre le JSON (crypto.py)
+        1. Génère encryption key (16 bytes) OU réutilise clé fournie
+        2. Compresse + chiffre le JSON (crypto.py) avec nouvel IV
         3. Crée wrapper keyv
         4. Insert dans PostgreSQL
         5. Retourne (scene_id, jwk_k, url)
@@ -93,6 +94,8 @@ class ExcalidrawClient:
         Args:
             scene_json: JSON Excalidraw (complet avec type, version, elements, appState, files)
             scene_id: ID optionnel (défaut: génération auto numérique pur)
+            encryption_key: Clé optionnelle (16 bytes). Si fournie, réutilise cette clé
+                           (utile pour update_scene : même clé, nouvel IV)
 
         Returns:
             Tuple (scene_id, jwk_k, url_frontend)
@@ -105,16 +108,28 @@ class ExcalidrawClient:
             asyncpg.UniqueViolationError: Si scene_id existe déjà
 
         Example:
+            # Création nouvelle scène
             scene = {"type": "excalidraw", "version": 2, ...}
             scene_id, jwk_k, url = await client.create_scene(json.dumps(scene))
-            print(f"Scène créée: {url}")
+
+            # Update avec même clé (URL stable)
+            key_bytes = crypto.jwk_k_to_key_bytes(jwk_k)
+            scene_id, jwk_k_same, url_same = await client.create_scene(
+                json.dumps(modified_scene),
+                scene_id=scene_id,
+                encryption_key=key_bytes
+            )
+            # jwk_k_same == jwk_k, url_same == url
         """
         # 1. Générer ID si non fourni
         if scene_id is None:
             scene_id = crypto.generate_scene_id()
 
-        # 2. Générer clé et chiffrer
-        encryption_key = crypto.generate_encryption_key()
+        # 2. Générer clé si non fournie, sinon réutiliser
+        if encryption_key is None:
+            encryption_key = crypto.generate_encryption_key()
+
+        # Chiffrer avec la clé (nouvel IV généré automatiquement)
         final_buffer, iv, jwk_k = crypto.compress_and_encrypt_scene(
             scene_json,
             encryption_key
