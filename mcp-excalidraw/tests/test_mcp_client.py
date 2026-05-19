@@ -24,16 +24,16 @@ from tools.scenes import scene_exists
 from dotenv import load_dotenv
 load_dotenv()
 
-# Import du client MCP
-from mcp.client.session import ClientSession
-from mcp.client.sse import sse_client
+# Import du client MCP (streamable HTTP)
+from fastmcp import Client
+from fastmcp.client.transports import StreamableHttpTransport
 
 
 # =============================================================================
 # CONFIG
 # =============================================================================
 
-SERVER_URL = "http://127.0.0.1:8000/sse"
+SERVER_URL = "http://127.0.0.1:8000/mcp"
 
 
 # =============================================================================
@@ -110,14 +110,15 @@ def get_sample_scene_json():
 # TESTS
 # =============================================================================
 
-async def test_01_tools_list(session: ClientSession):
+async def test_01_tools_list(client):
     """Test 1 : tools/list → 7 outils + schémas complets"""
     print("\n" + "="*80)
     print("TEST 1 : tools/list (liste des outils MCP)")
     print("="*80)
 
-    result = await session.list_tools()
-    tools = result.tools
+    result = await client.list_tools()
+    # Avec StreamableHttpTransport, result est directement la liste des outils
+    tools = result if isinstance(result, list) else result.tools
 
     print(f"\n📋 Outils exposés : {len(tools)}")
     for i, tool in enumerate(tools, 1):
@@ -134,8 +135,8 @@ async def test_01_tools_list(session: ClientSession):
             if len(params) > 3:
                 print(f"     ... et {len(params) - 3} autres")
 
-    # Vérifications
-    assert len(tools) == 7, f"Attendu 7 outils, trouvé {len(tools)}"
+    # Vérifications (H.6 : 6 outils, plus de "health" MCP tool)
+    assert len(tools) == 6, f"Attendu 6 outils, trouvé {len(tools)}"
 
     expected_tools = [
         "create_excalidraw_scene",
@@ -143,40 +144,46 @@ async def test_01_tools_list(session: ClientSession):
         "update_excalidraw_scene",
         "list_excalidraw_scenes",
         "delete_excalidraw_scene",
-        "find_or_create_opepartner_client",
-        "health"
+        "find_or_create_opepartner_client"
     ]
 
     tool_names = [tool.name for tool in tools]
     for expected in expected_tools:
         assert expected in tool_names, f"Outil {expected} manquant"
 
-    print(f"\n✅ Tous les 7 outils attendus présents")
+    print(f"\n✅ Tous les 6 outils attendus présents")
     print(f"✅ Tous les schémas inputSchema présents")
 
 
-async def test_02_health_call(session: ClientSession):
-    """Test 2 : tools/call health"""
+async def test_02_health_call(client):
+    """Test 2 : GET /health (route HTTP custom, pas MCP tool)"""
     print("\n" + "="*80)
-    print("TEST 2 : tools/call health (healthcheck)")
+    print("TEST 2 : GET /health (healthcheck HTTP)")
     print("="*80)
 
-    result = await session.call_tool("health", {})
+    import httpx
 
-    print(f"\n🏥 Réponse health :")
-    print(json.dumps(result.content[0].text, indent=2))
+    # /health est une route custom non protégée par auth
+    async with httpx.AsyncClient() as http_client:
+        response = await http_client.get("http://127.0.0.1:8000/health")
 
-    # Parser le JSON de la réponse
-    health_data = json.loads(result.content[0].text)
+        assert response.status_code == 200, f"Attendu 200, reçu {response.status_code}"
 
-    assert health_data["status"] == "healthy"
-    assert health_data["service"] == "mcp-excalidraw-opepartner"
-    assert health_data["version"] == "H.4.4"
+        health_data = response.json()
 
-    print(f"\n✅ Health check OK")
+        print(f"\n🏥 Réponse health :")
+        print(json.dumps(health_data, indent=2))
+
+        assert health_data["status"] == "healthy"
+        assert health_data["service"] == "mcp-excalidraw-opepartner"
+        assert health_data["version"] == "H.6"
+        assert health_data["transport"] == "http"
+        assert health_data["endpoint"] == "/mcp"
+
+        print(f"\n✅ Health check HTTP OK")
 
 
-async def test_03_create_scene_call(session: ClientSession, nocodb: NocoDBClient, excalidraw: ExcalidrawClient):
+async def test_03_create_scene_call(client, nocodb: NocoDBClient, excalidraw: ExcalidrawClient):
     """Test 3 : tools/call create_excalidraw_scene"""
     print("\n" + "="*80)
     print("TEST 3 : tools/call create_excalidraw_scene (orchestration)")
@@ -200,7 +207,7 @@ async def test_03_create_scene_call(session: ClientSession, nocodb: NocoDBClient
     print(f"   Client : {arguments['client_name']}")
     print(f"   Document : {arguments['document_title']}")
 
-    result = await session.call_tool("create_excalidraw_scene", arguments)
+    result = await client.call_tool("create_excalidraw_scene", arguments)
 
     print(f"\n📥 Réponse MCP :")
     response_text = result.content[0].text
@@ -276,50 +283,48 @@ async def test_04_cleanup(nocodb: NocoDBClient, excalidraw: ExcalidrawClient, sc
 async def run_all_tests():
     """Lance tous les tests avec un vrai client MCP"""
     print("\n" + "="*80)
-    print("TESTS CLIENT MCP RÉEL — Communication HTTP/SSE")
+    print("TESTS CLIENT MCP RÉEL — Communication HTTP Streamable")
     print("="*80)
 
-    # Créer client MCP SSE
-    async with sse_client(SERVER_URL) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
+    # Créer client MCP avec transport HTTP streamable
+    transport = StreamableHttpTransport(url=SERVER_URL)
+    async with Client(transport) as client:
+        print(f"\n✅ Connexion MCP HTTP établie : {SERVER_URL}")
 
-            print(f"\n✅ Connexion MCP SSE établie : {SERVER_URL}")
+        # Test 1 : tools/list
+        await test_01_tools_list(client)
 
-            # Test 1 : tools/list
-            await test_01_tools_list(session)
+        # Test 2 : tools/call health
+        await test_02_health_call(client)
 
-            # Test 2 : tools/call health
-            await test_02_health_call(session)
+        # Initialiser clients pour tests 3 et 4
+        nocodb = NocoDBClient()
+        excalidraw = ExcalidrawClient()
 
-            # Initialiser clients pour tests 3 et 4
-            nocodb = NocoDBClient()
-            excalidraw = ExcalidrawClient()
+        await nocodb.connect()
+        await excalidraw.connect()
 
-            await nocodb.connect()
-            await excalidraw.connect()
+        scene_id = None
 
-            scene_id = None
+        try:
+            # Test 3 : tools/call create_excalidraw_scene
+            scene_id = await test_03_create_scene_call(client, nocodb, excalidraw)
 
-            try:
-                # Test 3 : tools/call create_excalidraw_scene
-                scene_id = await test_03_create_scene_call(session, nocodb, excalidraw)
+            # Test 4 : Cleanup
+            await test_04_cleanup(nocodb, excalidraw, scene_id)
 
-                # Test 4 : Cleanup
-                await test_04_cleanup(nocodb, excalidraw, scene_id)
+            print("\n" + "="*80)
+            print("✅ TOUS LES TESTS CLIENT MCP RÉUSSIS")
+            print("="*80 + "\n")
 
-                print("\n" + "="*80)
-                print("✅ TOUS LES TESTS CLIENT MCP RÉUSSIS")
-                print("="*80 + "\n")
+        except Exception as e:
+            print(f"\n❌ ERREUR : {e}")
+            import traceback
+            traceback.print_exc()
 
-            except Exception as e:
-                print(f"\n❌ ERREUR : {e}")
-                import traceback
-                traceback.print_exc()
-
-            finally:
-                await nocodb.disconnect()
-                await excalidraw.disconnect()
+        finally:
+            await nocodb.disconnect()
+            await excalidraw.disconnect()
 
 
 if __name__ == "__main__":

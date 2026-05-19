@@ -1,21 +1,26 @@
 """
 Serveur MCP Excalidraw OPEPARTNER
-Phase H.4.4 — Remote-ready (FastMCP HTTP/SSE)
+Phase H.6 — Déploiement remote (FastMCP HTTP streamable)
 
 ARCHITECTURE :
-- Serveur MCP via FastMCP (transport HTTP/SSE)
-- Conçu pour déploiement REMOTE (H.6), testé en local (H.4.4)
-- Auth middleware : point d'entrée prévu (H.6), désactivé en local
+- Serveur MCP via FastMCP (transport HTTP streamable, recommandé remote)
+- Endpoint MCP : /mcp (path standard FastMCP HTTP)
+- Healthcheck : /health (route custom non protégée)
+- Auth : StaticTokenVerifier (bearer token statique)
 
 OUTILS MCP EXPOSÉS :
-- create_scene_orchestrated : orchestration complète Excalidraw + NocoDB
-- get_scene : récupère et déchiffre une scène
-- update_scene : modifie une scène existante
-- list_scenes : liste des scènes disponibles
-- delete_scene : suppression avec confirmation
-- find_or_create_client : gestion clients standalone
+- create_excalidraw_scene : orchestration complète Excalidraw + NocoDB
+- get_excalidraw_scene : récupère et déchiffre une scène
+- update_excalidraw_scene : modifie une scène existante
+- list_excalidraw_scenes : liste des scènes disponibles
+- delete_excalidraw_scene : suppression avec confirmation
+- find_or_create_opepartner_client : gestion clients standalone
+- health : healthcheck MCP tool (legacy, utilisé en H.4.4)
 
-H.6 : Auth via bearer token, deployment Coolify, HTTPS Traefik
+DÉPLOIEMENT :
+- Local dev : AUTH_ENABLED=false (pas d'auth)
+- Remote prod : AUTH_ENABLED=true + AUTH_BEARER_TOKEN (token statique)
+- Coolify healthcheck : GET /health (HTTP, pas MCP)
 """
 
 import os
@@ -25,12 +30,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 
 from fastmcp import FastMCP
+from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+from starlette.responses import JSONResponse
 
 # Ajouter src/ au path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from tools.orchestration import create_scene_orchestrated
-from tools.scenes import create_scene, get_scene, update_scene, list_scenes, delete_scene
+from tools.scenes import get_scene, update_scene, list_scenes, delete_scene
 from tools.nocodb_tools import find_or_create_client
 from clients.nocodb import NocoDBClient
 
@@ -40,13 +47,53 @@ load_dotenv()
 
 
 # =============================================================================
-# FASTMCP APP (Serveur MCP avec transport HTTP/SSE)
+# AUTH CONFIGURATION (StaticTokenVerifier)
 # =============================================================================
 
-mcp = FastMCP(
-    "Excalidraw OPEPARTNER",
-    version="H.4.4"
-)
+AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").lower() == "true"
+AUTH_BEARER_TOKEN = os.getenv("AUTH_BEARER_TOKEN", "")
+
+if AUTH_ENABLED and AUTH_BEARER_TOKEN:
+    # Mode production : auth activée avec token statique
+    verifier = StaticTokenVerifier(
+        tokens={
+            AUTH_BEARER_TOKEN: {
+                "client_id": "opepartner-user",
+                "scopes": ["execute"]
+            }
+        },
+        required_scopes=["execute"]
+    )
+    mcp = FastMCP("Excalidraw OPEPARTNER", version="H.6", auth=verifier)
+    print("🔒 Auth activée : bearer token requis pour MCP endpoint")
+else:
+    # Mode dev local : pas d'auth
+    mcp = FastMCP("Excalidraw OPEPARTNER", version="H.6")
+    print("⚠️  Auth désactivée : mode dev local")
+
+
+# =============================================================================
+# ROUTE HTTP CUSTOM : /health (non protégée par auth)
+# =============================================================================
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request):
+    """
+    Healthcheck HTTP pour Coolify (H.6)
+
+    Route non protégée par auth (doc FastMCP : custom routes jamais protégées).
+    Utilisé par Coolify pour vérifier que le service est healthy.
+
+    Returns:
+        JSONResponse avec status healthy
+    """
+    return JSONResponse({
+        "status": "healthy",
+        "service": "mcp-excalidraw-opepartner",
+        "version": "H.6",
+        "transport": "http",
+        "endpoint": "/mcp"
+    })
 
 
 # =============================================================================
@@ -254,74 +301,6 @@ async def find_or_create_opepartner_client(
 
 
 # =============================================================================
-# OUTIL MCP HEALTH (alternative au endpoint HTTP pour healthcheck)
-# =============================================================================
-
-@mcp.tool()
-async def health() -> Dict[str, str]:
-    """
-    Health check pour monitoring (alternative à /health endpoint)
-
-    Returns:
-        Dict avec status, service, version
-
-    Example:
-        result = await health()
-        print(f"Service: {result['service']} - Status: {result['status']}")
-    """
-    return {
-        "status": "healthy",
-        "service": "mcp-excalidraw-opepartner",
-        "version": "H.4.4",
-        "transport": "http-sse"
-    }
-
-
-# =============================================================================
-# POINT D'ENTRÉE AUTH (H.6 — désactivé pour test local H.4.4)
-# =============================================================================
-
-# TODO H.6 : Middleware d'authentification
-# -----------------------------------------
-# Insertion d'un middleware FastAPI pour vérifier les tokens/API keys
-# avant d'autoriser les appels.
-#
-# FastMCP expose son app FastAPI via mcp.fastapi_app (instance FastAPI).
-# On peut ajouter un middleware dessus.
-#
-# Exemple implémentation H.6 :
-#
-# from fastapi import Request, HTTPException
-#
-# @mcp.fastapi_app.middleware("http")
-# async def auth_middleware(request: Request, call_next):
-#     # Skip auth pour /health, /docs, /openapi.json
-#     if request.url.path in ["/health", "/docs", "/openapi.json"]:
-#         return await call_next(request)
-#
-#     # Vérifier bearer token
-#     auth_header = request.headers.get("Authorization")
-#     if not auth_header or not auth_header.startswith("Bearer "):
-#         return JSONResponse(
-#             status_code=401,
-#             content={"error": "Unauthorized"}
-#         )
-#
-#     # Valider token JWT/API key ici
-#     token = auth_header.replace("Bearer ", "")
-#     if not validate_token(token):
-#         return JSONResponse(
-#             status_code=401,
-#             content={"error": "Invalid token"}
-#         )
-#
-#     response = await call_next(request)
-#     return response
-#
-# Pour H.4.4 (test local) : Auth désactivée, serveur ouvert localhost
-
-
-# =============================================================================
 # MAIN : Démarrage serveur
 # =============================================================================
 
@@ -329,27 +308,30 @@ if __name__ == "__main__":
     host = os.getenv("MCP_HOST", "127.0.0.1")
     port = int(os.getenv("MCP_PORT", "8000"))
 
+    auth_status = "🔒 Activée (bearer token)" if AUTH_ENABLED else "⚠️  Désactivée (dev local)"
+
     print(f"""
 ╔════════════════════════════════════════════════════════════════╗
-║  MCP Excalidraw OPEPARTNER — Serveur démarré (H.4.4)          ║
+║  MCP Excalidraw OPEPARTNER — Serveur démarré (H.6)            ║
 ╠════════════════════════════════════════════════════════════════╣
-║  Transport : MCP HTTP/SSE (FastMCP)                            ║
-║  Host      : {host:<50} ║
-║  Port      : {port:<50} ║
-║  Auth      : Désactivée (test local)                           ║
+║  Transport : HTTP streamable (recommandé remote)               ║
+║  Endpoint  : http://{host}:{port}/mcp{' ' * (37 - len(host) - len(str(port)))} ║
+║  Health    : http://{host}:{port}/health{' ' * (34 - len(host) - len(str(port)))} ║
+║  Auth      : {auth_status:<50} ║
 ╠════════════════════════════════════════════════════════════════╣
-║  Outils MCP exposés (7) :                                      ║
+║  Outils MCP exposés (6) :                                      ║
 ║  • create_excalidraw_scene (orchestration complète)            ║
 ║  • get_excalidraw_scene                                        ║
 ║  • update_excalidraw_scene                                     ║
 ║  • list_excalidraw_scenes                                      ║
 ║  • delete_excalidraw_scene (confirm=True requis)               ║
 ║  • find_or_create_opepartner_client                            ║
-║  • health (healthcheck tool)                                   ║
 ╠════════════════════════════════════════════════════════════════╣
-║  H.6 : Auth bearer token + déploiement Coolify + HTTPS         ║
+║  Doc FastMCP : transport HTTP streamable (pas SSE legacy)      ║
+║  /health : route custom non protégée (Coolify healthcheck)     ║
+║  Auth : StaticTokenVerifier (token statique, pas JWT)          ║
 ╚════════════════════════════════════════════════════════════════╝
     """)
 
-    # Démarrer serveur MCP (transport HTTP/SSE)
-    mcp.run(transport="sse", host=host, port=port)
+    # Démarrer serveur MCP (transport HTTP streamable - recommandé remote)
+    mcp.run(transport="http", host=host, port=port)
