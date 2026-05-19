@@ -1,0 +1,17 @@
+# MCP Server Excalidraw OPEPARTNER - Production dependencies
+# Phase H.6 - Déploiement remote Coolify
+
+# FastMCP — Serveur MCP Python (transport HTTP streamable)
+fastmcp==3.3.1
+
+# PostgreSQL client (asyncpg pour database.py)
+asyncpg==0.31.0
+
+# HTTP client (pour clients excalidraw/nocodb)
+httpx==0.28.1
+
+# Cryptographie (chiffrement E2E AES-128-GCM)
+cryptography==48.0.0
+
+# Variables d'environnement (.env)
+python-dotenv==1.2.2

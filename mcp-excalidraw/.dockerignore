@@ -1,0 +1,39 @@
+# Fichiers à exclure du build Docker
+
+# Environnement virtuel Python
+.venv/
+venv/
+env/
+
+# Environnement local (.env contient secrets locaux, pas prod)
+.env
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Tests
+tests/
+*.log
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+README.md
+CLAUDE.md
+docs/
+
+# CI/CD
+.github/
