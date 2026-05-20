@@ -37,3 +37,4 @@ build/
 *.egg-info/
 .env.docker.test
 .claude/
+**/fix-*.sql
