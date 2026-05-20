@@ -22,8 +22,8 @@ except ImportError:
 
 
 # ID de la colonne relation "clients" dans schemas_excalidraw
-# Récupéré via : curl ".../meta/tables/m6ww89ejz5f3wqk" | jq '.columns[] | select(.title == "clients")'
-COLUMN_CLIENTS_RELATION = "c7f8d8cdrxsx406"
+# Récupéré via : curl ".../meta/tables/m7sm9k8fq50ugxe" | jq '.columns[] | select(.title == "clients")'
+COLUMN_CLIENTS_RELATION = "cwihjc92fexrzfh"
 
 
 async def find_or_create_client(

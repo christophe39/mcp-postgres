@@ -34,8 +34,8 @@ class NocoDBClient:
 
     # Table IDs réels base OPEPARTNER (p8qmnd5s0q9mtww)
     # Récupérés via: curl "https://nocodb.../api/v2/meta/bases/p8qmnd5s0q9mtww/tables"
-    TABLE_CLIENTS = "m8r3u3f1f60wgdq"
-    TABLE_SCHEMAS_EXCALIDRAW = "m6ww89ejz5f3wqk"
+    TABLE_CLIENTS = "momhdyg66ws3x8s"
+    TABLE_SCHEMAS_EXCALIDRAW = "m7sm9k8fq50ugxe"
     TABLE_MISSIONS = "mq4dx42jmnkmcpo"
     TABLE_BUSINESS_MODEL_CANVAS = "mlwgq2hqva3hq81"
     TABLE_SWOT = "mfhynay6n0eo48h"
