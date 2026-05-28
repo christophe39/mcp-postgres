@@ -1,5 +1,5 @@
 # MCP Server Excalidraw OPEPARTNER - Production dependencies
-# Phase H.6 - Déploiement remote Coolify
+# Phase H.7 - MultiAuth OIDC + bearer fallback
 
 # FastMCP — Serveur MCP Python (transport HTTP streamable)
 fastmcp==3.3.1
@@ -15,3 +15,8 @@ cryptography==48.0.0
 
 # Variables d'environnement (.env)
 python-dotenv==1.2.2
+
+# Redis pour client_storage OIDC (état OAuth)
+py-key-value-aio[redis]==0.1.3
+
+# Note : cryptography déjà présent ligne 14 (requis par OIDCProxy + Fernet)

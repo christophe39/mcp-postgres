@@ -1,12 +1,15 @@
 """
 Serveur MCP Excalidraw OPEPARTNER
-Phase H.6 — Déploiement remote (FastMCP HTTP streamable)
+Phase H.7 — MultiAuth OIDC + bearer fallback
+Keycloak realm "mcp" + token statique legacy (scripts/agents)
 
 ARCHITECTURE :
 - Serveur MCP via FastMCP (transport HTTP streamable, recommandé remote)
 - Endpoint MCP : /mcp (path standard FastMCP HTTP)
 - Healthcheck : /health (route custom non protégée)
-- Auth : StaticTokenVerifier (bearer token statique)
+- Auth : MultiAuth (OIDCProxy + StaticTokenVerifier fallback)
+- OIDC : Keycloak realm "mcp" (client "mcp-excalidraw")
+- Bearer fallback : token statique pour scripts legacy
 
 OUTILS MCP EXPOSÉS :
 - create_excalidraw_scene : orchestration complète Excalidraw + NocoDB
@@ -26,11 +29,18 @@ DÉPLOIEMENT :
 import os
 import sys
 import json
+import hashlib
+import base64
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 
 from fastmcp import FastMCP
+from fastmcp.server.auth import MultiAuth
+from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+from key_value.aio.stores.redis import RedisStore
+from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+from cryptography.fernet import Fernet
 from starlette.responses import JSONResponse
 
 # Ajouter src/ au path
@@ -47,28 +57,104 @@ load_dotenv()
 
 
 # =============================================================================
-# AUTH CONFIGURATION (StaticTokenVerifier)
+# AUTH CONFIGURATION (MultiAuth : OIDCProxy + StaticTokenVerifier)
 # =============================================================================
 
-AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").lower() == "true"
-AUTH_BEARER_TOKEN = os.getenv("AUTH_BEARER_TOKEN", "")
+def derive_fernet_key(s: str) -> bytes:
+    """Dérive une clé Fernet 32-byte URL-safe depuis une string."""
+    return base64.urlsafe_b64encode(hashlib.sha256(s.encode()).digest())
 
-if AUTH_ENABLED and AUTH_BEARER_TOKEN:
-    # Mode production : auth activée avec token statique
-    verifier = StaticTokenVerifier(
-        tokens={
-            AUTH_BEARER_TOKEN: {
-                "client_id": "opepartner-user",
-                "scopes": ["execute"]
-            }
-        },
-        required_scopes=["execute"]
+
+AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").lower() == "true"
+
+if AUTH_ENABLED:
+    # Mode production : MultiAuth avec OIDC principal + bearer fallback
+
+    # Variables d'environnement OIDC (Keycloak realm "mcp")
+    OIDC_CONFIG_URL = os.getenv("OIDC_CONFIG_URL")
+    OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
+    OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET")
+    MCP_BASE_URL = os.getenv("MCP_BASE_URL")
+    REDIS_URL = os.getenv("REDIS_URL")
+    JWT_SIGNING_KEY = os.getenv("JWT_SIGNING_KEY")
+    FERNET_SECRET = os.getenv("FERNET_SECRET")
+
+    # Token bearer statique (fallback pour scripts legacy)
+    AUTH_BEARER_TOKEN = os.getenv("AUTH_BEARER_TOKEN", "")
+
+    # Validation config OIDC (toutes obligatoires)
+    missing_vars = []
+    if not OIDC_CONFIG_URL:
+        missing_vars.append("OIDC_CONFIG_URL")
+    if not OIDC_CLIENT_ID:
+        missing_vars.append("OIDC_CLIENT_ID")
+    if not OIDC_CLIENT_SECRET:
+        missing_vars.append("OIDC_CLIENT_SECRET")
+    if not MCP_BASE_URL:
+        missing_vars.append("MCP_BASE_URL")
+    if not REDIS_URL:
+        missing_vars.append("REDIS_URL")
+    if not JWT_SIGNING_KEY:
+        missing_vars.append("JWT_SIGNING_KEY")
+    if not FERNET_SECRET:
+        missing_vars.append("FERNET_SECRET")
+
+    if missing_vars:
+        raise ValueError(f"Missing required OIDC environment variables: {', '.join(missing_vars)}")
+
+    # Setup storage Redis chiffré (pattern validé mcp-jouet)
+    fernet = Fernet(derive_fernet_key(FERNET_SECRET))
+    store = RedisStore(url=REDIS_URL)
+    encrypted_store = FernetEncryptionWrapper(
+        key_value=store,
+        fernet=fernet,
+        raise_on_decryption_error=False,
     )
-    mcp = FastMCP("Excalidraw OPEPARTNER", version="H.6", auth=verifier)
-    print("🔒 Auth activée : bearer token requis pour MCP endpoint")
+
+    # Provider OIDC principal (Keycloak)
+    oidc_proxy = OIDCProxy(
+        config_url=OIDC_CONFIG_URL,
+        client_id=OIDC_CLIENT_ID,
+        client_secret=OIDC_CLIENT_SECRET,
+        audience=MCP_BASE_URL,              # Recommandé pour prod (Keycloak best practice)
+        base_url=MCP_BASE_URL,
+        redirect_path="/auth/callback",
+        required_scopes=["openid", "mcp:execute"],
+        jwt_signing_key=JWT_SIGNING_KEY,
+        client_storage=encrypted_store,
+    )
+
+    # Verifier fallback (bearer statique pour scripts legacy)
+    verifiers = []
+    if AUTH_BEARER_TOKEN:
+        static_verifier = StaticTokenVerifier(
+            tokens={
+                AUTH_BEARER_TOKEN: {
+                    "client_id": "legacy-bearer-script",
+                    "scopes": ["mcp:execute"]
+                }
+            },
+            required_scopes=["mcp:execute"]
+        )
+        verifiers.append(static_verifier)
+
+    # MultiAuth : OIDC en premier, bearer en fallback
+    auth = MultiAuth(
+        server=oidc_proxy,
+        verifiers=verifiers,
+        required_scopes=["mcp:execute"]
+    )
+
+    mcp = FastMCP("Excalidraw OPEPARTNER", version="H.7", auth=auth)
+    print(f"""
+🔒 Auth MultiAuth activée :
+   • OIDC principal : {OIDC_CLIENT_ID} @ {OIDC_CONFIG_URL}
+   • Bearer fallback : {'✅ Activé' if AUTH_BEARER_TOKEN else '❌ Désactivé'}
+   • Scopes requis : openid, mcp:execute
+""")
 else:
     # Mode dev local : pas d'auth
-    mcp = FastMCP("Excalidraw OPEPARTNER", version="H.6")
+    mcp = FastMCP("Excalidraw OPEPARTNER", version="H.7")
     print("⚠️  Auth désactivée : mode dev local")
 
 
@@ -79,7 +165,7 @@ else:
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request):
     """
-    Healthcheck HTTP pour Coolify (H.6)
+    Healthcheck HTTP pour Coolify (H.7)
 
     Route non protégée par auth (doc FastMCP : custom routes jamais protégées).
     Utilisé par Coolify pour vérifier que le service est healthy.
@@ -90,7 +176,7 @@ async def health_check(request):
     return JSONResponse({
         "status": "healthy",
         "service": "mcp-excalidraw-opepartner",
-        "version": "H.6",
+        "version": "H.7",
         "transport": "http",
         "endpoint": "/mcp"
     })
