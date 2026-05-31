@@ -1,130 +1,117 @@
-# MCP PostgreSQL - AGNI
+# MCP Postgres OPEPARTNER
 
-MCP custom pour accès direct aux bases PostgreSQL du VPS Hostinger (FastMCP + OIDCProxy).
+MCP pour accès **lecture seule** aux bases PostgreSQL du VPS Hostinger, protégé par OIDCProxy (FastMCP) → Keycloak.
+
+**Phase actuelle** : C2-C5 — Lecture seule complète avec introspection + requêtes paramétrées.
 
 ## 🎯 Objectif
 
-Permettre à Claude (Desktop/Web/iOS/iPad) d'interroger et gérer les bases PostgreSQL de l'écosystème AGNI :
+Permettre à Claude (Desktop/Web/iOS/iPad) d'interroger les bases PostgreSQL de l'écosystème AGNI :
 - `opepartner` : données consulting OPEPARTNER
 - `calocalc_inscription` : données CaloCalc
 - `db_agni` : données AGNI Consult
 - `nocodb_db` : métadonnées NocoDB
-- `affine` : données AFFiNE
 
-## 🛠️ Outils exposés (MVP)
+## 🛠️ Outils exposés (lecture seule)
 
-### Exploration
-- `list_databases()` : Liste toutes les bases accessibles
-- `list_tables(database)` : Liste les tables d'une base
-- `get_schema(database, table?)` : Schéma complet (colonnes, types, FK, index)
-- `get_table_stats(database, table)` : Stats (nb lignes, taille, dernière MAJ)
+### Identité
+- `whoami()` : Identité de l'utilisateur authentifié (remplace hello_world)
+
+### Introspection
+- `list_databases()` : Liste des bases autorisées (DB_WHITELIST)
+- `list_schemas(database)` : Schémas d'une base (hors schémas système)
+- `list_tables(database, schema="public")` : Tables/vues d'un schéma
+- `describe_table(database, schema, table)` : Structure complète (colonnes, types, clés primaires)
 
 ### Requêtes
-- `query(database, sql, params?)` : Exécute une requête SELECT (lecture seule par défaut)
-- `execute(database, sql, params?)` : Exécute INSERT/UPDATE/DELETE (nécessite confirmation)
-
-### Gestion
-- `backup_database(database)` : pg_dump vers Cloudflare R2
-- `restore_database(database, backup_id)` : pg_restore depuis R2
-- `create_database(name, owner?)` : Créer une nouvelle base
-- `drop_database(name)` : Supprimer une base (confirmation explicite requise)
-
-### Templates
-- `create_opepartner_tables()` : Créer les 14 tables OPEPARTNER (si base vide)
-- `migrate_database(database, migration_script)` : Appliquer une migration SQL
+- `query_readonly(database, sql, params?, max_rows?)` : Exécute une requête SELECT
+  - Transaction READ ONLY
+  - Paramètres via `$1`, `$2`, etc. (jamais de concaténation SQL)
+  - Limitation de lignes forcée (défaut 100, max 1000)
+  - Détection de troncature automatique
+  - Sérialisation JSON (dates → ISO, Decimal → string)
 
 ## 🔐 Sécurité
 
+### Auth & Autorisation
 - **Auth OIDC/Keycloak** via OIDCProxy (realm `mcp`, client `mcp-postgres`)
-- **Lecture seule par défaut** : `query()` ne peut que SELECT
-- **Confirmation explicite** pour actions destructives (DROP, DELETE sans WHERE, etc.)
-- **Isolation par base** : chaque connexion PostgreSQL est scopée à une database
-- **Logs d'audit** : toutes les requêtes sont loggées avec utilisateur OIDC
+- **Rôle PostgreSQL** : `mcp_ro` (lecture seule stricte, créé par l'infra)
+- **Whitelist de bases** : seules les bases listées dans `DB_WHITELIST` sont accessibles
+
+### Garde-fous SQL
+- **server_settings PostgreSQL** :
+  - `statement_timeout` : timeout requis par requête (5000ms par défaut)
+  - `default_transaction_read_only` : "on" (lecture seule forcée)
+- **Identifiants SQL** : toujours via paramètres (`$1`, `$2`) ou `quote_ident`, jamais de f-string
+- **Limite de lignes** : forcée côté serveur (fetch limité), pas via `LIMIT` SQL injectable
+
+### Logs d'audit
+Chaque appel d'outil logue :
+- Identité utilisateur (Keycloak `sub` claim)
+- Outil appelé
+- Base ciblée
+- Extrait SQL (pour `query_readonly`)
 
 ## 📦 Variables d'environnement
 
+Voir [.env.example](.env.example) pour la liste complète.
+
+**Critiques** :
 ```bash
-# PostgreSQL - Container principal
-POSTGRES_HOST=69.62.110.207
-POSTGRES_PORT=5432
-POSTGRES_USER=agni_admin
-POSTGRES_PASSWORD=<secret>
-POSTGRES_DATABASES=opepartner,calocalc_inscription,db_agni,nocodb_db
+# PostgreSQL - Accès lecture seule (rôle mcp_ro)
+DB_HOST=<IP VPS>
+DB_PORT=5432
+DB_USER=mcp_ro
+DB_PASSWORD=<secret par Desktop>
+DB_WHITELIST=opepartner,calocalc_inscription,db_agni,nocodb_db
+DB_DEFAULT=db_agni
 
-# PostgreSQL - AFFiNE (container séparé)
-AFFINE_POSTGRES_HOST=69.62.110.207
-AFFINE_POSTGRES_PORT=5433  # Port différent si nécessaire
-AFFINE_POSTGRES_USER=affine_admin
-AFFINE_POSTGRES_PASSWORD=<secret>
-AFFINE_POSTGRES_DATABASE=affine
+# Limites de sécurité
+QUERY_MAX_ROWS_DEFAULT=100
+QUERY_MAX_ROWS_HARD=1000
+STATEMENT_TIMEOUT_MS=5000
 
-# Auth OIDC
+# Auth OIDC/Keycloak
 OIDC_CONFIG_URL=https://keycloak.agnisolution.fr/realms/mcp/.well-known/openid-configuration
 OIDC_CLIENT_ID=mcp-postgres
-OIDC_CLIENT_SECRET=<secret>
+OIDC_CLIENT_SECRET=<secret par Desktop>
 MCP_BASE_URL=https://mcp-postgres.agnisolution.fr
 
-# Redis (sessions)
+# Redis + Encryption
 REDIS_URL=<Redis URL interne>
-
-# Encryption
-JWT_SIGNING_KEY=<généré>
-FERNET_SECRET=<généré>
-
-# Cloudflare R2 (backups)
-R2_ENDPOINT_URL=<endpoint>
-R2_ACCESS_KEY_ID=<access_key>
-R2_SECRET_ACCESS_KEY=<secret_key>
-R2_BUCKET_NAME=agni-postgres-backups
+JWT_SIGNING_KEY=<généré par Desktop>
+FERNET_SECRET=<généré par Desktop>
 ```
 
-## 🚀 Déploiement Coolify
+⚠️ **Tous les secrets sont posés par Desktop dans Coolify** — ne RIEN hardcoder dans le code.
 
-1. Créer une nouvelle application "MCP PostgreSQL"
+## 🚀 Déploiement Coolify (par Desktop)
+
+1. Créer l'application "MCP PostgreSQL"
 2. Type : Dockerfile
-3. Variables d'environnement : toutes celles ci-dessus
+3. Poser toutes les variables d'environnement
 4. Healthcheck :
    - Path : `/.well-known/oauth-protected-resource/mcp`
    - Port : 8080
    - Start period : 30s
 5. Domaine : `mcp-postgres.agnisolution.fr`
-6. Activer Traefik HTTPS
-
-## 🧪 Tests locaux
-
-```bash
-# Installation
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Configuration
-cp .env.example .env
-# Remplir les credentials dans .env
-
-# Lancement
-python server.py
-
-# Test dans un autre terminal
-curl http://localhost:8080/.well-known/oauth-protected-resource/mcp
-```
+6. Traefik HTTPS activé
 
 ## 📋 Roadmap
 
-- [ ] **Phase 1** : Outils de base (list_databases, query, list_tables, get_schema)
-- [ ] **Phase 2** : Outils de gestion (backup, restore, create_database)
-- [ ] **Phase 3** : Templates et migrations (create_opepartner_tables, migrate_database)
-- [ ] **Phase 4** : Déploiement Coolify + auth OIDC
-- [ ] **Phase 5** : Tests cross-device (Desktop, Web, iOS)
-- [ ] **Phase 6** : Optimisations (cache, pool de connexions, query timeout)
+- [x] **C1** : Squelette auth-only déployable
+- [x] **C2** : asyncpg + pools multi-base
+- [x] **C3** : Outils d'introspection (list_databases, list_schemas, list_tables, describe_table)
+- [x] **C4** : query_readonly avec paramètres + limite de lignes
+- [x] **C5** : Garde-fous (whitelist, quote_ident, logs audit, erreurs claires)
+- [ ] **Futur** : Outils écriture (INSERT/UPDATE/DELETE avec confirmation), backups R2, templates
 
 ## 🔗 Liens
 
+- **Repo GitHub** : https://github.com/christophe39/mcp-postgres
 - **Documentation FastMCP** : https://github.com/anthropics/fast-mcp
-- **Documentation OIDCProxy** : Intégrée dans FastMCP 3.3+
 - **VPS SSH** : `ssh root@69.62.110.207`
-- **Container PostgreSQL principal** : `c0408wgcs08kc0w480koowcs`
 
 ---
 
-*Créé le 31 mai 2026*
+*Créé le 31 mai 2026 · Mis à jour après C2-C5*
