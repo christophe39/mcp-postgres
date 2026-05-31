@@ -1,76 +1,104 @@
-# OPEPARTNER Stack - Système Excalidraw + MCP Custom
+# AGNI MCP Stack
 
-> Infrastructure pour la génération automatisée de schémas stratégiques (BMC, PESTEL, SWOT) pilotée par Claude
+> Suite de MCPs custom self-hosted pour l'écosystème AGNI (OPEPARTNER, CaloCalc, AGNI Consult)
 
 ## 🎯 Vision
 
-Système self-hosted permettant de générer et maintenir des schémas visuels depuis des prompts Claude, avec stockage pérenne et intégration complète dans l'écosystème OPEPARTNER (AFFiNE + NocoDB).
+Infrastructure multi-MCP permettant d'intégrer Claude (Desktop/Web/iOS/iPad) avec l'ensemble des services AGNI : génération de schémas visuels (Excalidraw), accès bases de données (PostgreSQL), gestion documentaire (AFFiNE), et futurs services.
 
 ### Cas d'usage
 
-1. **OPEPARTNER** (prioritaire) : Dossiers clients confidentiels, schémas stratégiques
-2. **CaloCalc** (futur) : Documentation technique, schémas d'architecture
+1. **OPEPARTNER** : Dossiers clients confidentiels, schémas stratégiques (BMC, PESTEL, SWOT), accès bases
+2. **CaloCalc** : Documentation technique, schémas d'architecture, données inscription
+3. **AGNI Consult** : Documentation interne, données métier
 
 ## 🏗️ Architecture
 
 ```
 Claude (Desktop/Web/iOS/iPad)
-    ↓ (via MCP custom remote HTTPS)
-MCP Excalidraw
-    ↓
-Excalidraw self-hosted (frontend + storage backend)
-    ↓
-NocoDB → PostgreSQL `opepartner` (14 tables)
-    ↓
-AFFiNE (workspace OPEPARTNER)
+    ↓ (via MCPs custom remote HTTPS)
+    ├─── MCP Excalidraw ──→ Excalidraw self-hosted ──→ NocoDB ──→ PostgreSQL
+    ├─── MCP PostgreSQL ──→ PostgreSQL (accès direct multi-bases)
+    └─── (futurs MCPs...)
+                              ↓
+                    AFFiNE (workspaces OPEPARTNER, AGNI Consult)
 ```
 
-## 📦 Composants
+## 📦 MCPs Custom
 
-| Composant | Description | URL cible |
-|-----------|-------------|-----------|
-| **PostgreSQL** | Base `opepartner` dans container `c0408wgcs08kc0w480koowcs` | VPS Hostinger |
-| **NocoDB** | Interface base de données | `https://nocodb.agnisolution.fr` |
+| MCP | Description | URL | Statut |
+|-----|-------------|-----|--------|
+| **mcp-excalidraw** | Génération schémas visuels (BMC, PESTEL, SWOT, organigrammes) | `https://mcp-excalidraw.agnisolution.fr` | ✅ Production |
+| **mcp-postgres** | Accès direct bases PostgreSQL (opepartner, calocalc_inscription, db_agni, etc.) | `https://mcp-postgres.agnisolution.fr` | 🚧 À développer |
+| **mcp-jouet** | Validation auth OIDC/Keycloak | `https://mcp-jouet.agnisolution.fr` | ✅ Test |
+
+## 🗄️ Services backend
+
+| Service | Description | URL |
+|---------|-------------|-----|
+| **PostgreSQL** | 5 containers PostgreSQL sur VPS Hostinger | `c0408wgcs08kc0w480koowcs` (principal) |
+| **NocoDB** | Interface bases de données | `https://nocodb.agnisolution.fr` |
 | **Excalidraw** | Frontend + storage backend self-hosted | `https://excalidraw.opepartner.fr` |
-| **MCP Custom** | Serveur MCP remote HTTPS | `https://mcp-excalidraw.agnisolution.fr` |
-| **AFFiNE** | Documentation workspace OPEPARTNER | `https://affine.agnisolution.fr` |
+| **AFFiNE** | Documentation (2 workspaces) | `https://affine.agnisolution.fr` |
+| **Keycloak** | Auth OIDC pour MCPs | `https://keycloak.agnisolution.fr` |
 
-## 🗄️ Modèle de données (14 tables MVP)
+## 🗄️ Bases de données PostgreSQL
 
-- `Clients`, `Contacts`, `Missions`, `Ateliers`
-- `Livrables`, `Actions`, `Comptes_rendus`
-- `Référentiel_modèles`
-- **`Schemas_Excalidraw`** ⭐ (table pivot pour le MCP)
-- `Business_Model_Canvas`, `SWOT`, `PESTEL`, `Value_Proposition_Canvas`, `Plan_90_jours`
+### Container principal (`c0408wgcs08kc0w480koowcs`)
+
+| Base | Description | Tables principales |
+|------|-------------|--------------------|
+| `opepartner` | Données OPEPARTNER consulting | 14 tables (Clients, Missions, Schemas_Excalidraw, BMC, SWOT, PESTEL...) |
+| `calocalc_inscription` | Données CaloCalc | Utilisateurs, profils, données métier |
+| `db_agni` | Données AGNI Consult | Documentation, projets |
+| `nocodb_db` | Métadonnées NocoDB | Bases, tables, vues |
 
 ## 🚀 Roadmap
 
+### MCP Excalidraw (✅ terminé)
 - [x] Phase A-C : Préparation AFFiNE (workspace OPEPARTNER)
-- [ ] **Phase 1** : Préparation environnement local (Git, structure)
-- [ ] **Phase 2** : Création base PostgreSQL + 14 tables
-- [ ] **Phase 3** : Connexion NocoDB
-- [ ] **Phase 4** : Déploiement Excalidraw self-hosted
-- [ ] **Phase 5** : Développement MCP custom
-- [ ] **Phase 6** : Tests bout-en-bout
+- [x] Phase E : Création base PostgreSQL + 14 tables
+- [x] Phase F : Connexion NocoDB
+- [x] Phase G : Déploiement Excalidraw self-hosted
+- [x] Phase H : Développement MCP custom Excalidraw
+- [x] Auth OIDC/Keycloak via OIDCProxy
+
+### MCP PostgreSQL (🚧 en cours)
+- [ ] **Phase 1** : Structure projet et spécifications
+- [ ] **Phase 2** : Développement outils de base (list_databases, query, list_tables, get_schema)
+- [ ] **Phase 3** : Outils avancés (backup, restore, migrations)
+- [ ] **Phase 4** : Déploiement Coolify + auth OIDC
+- [ ] **Phase 5** : Tests cross-device (Desktop, Web, iOS)
 
 ## 📁 Structure du projet
 
 ```
-opepartner-stack/
-├── CLAUDE.md              # Brief de contexte complet
-├── README.md              # Ce fichier
-├── .env.example           # Template variables d'environnement
-├── infra/                 # Infrastructure et déploiement
-│   ├── docker-compose/    # Compositions Docker pour Coolify
-│   ├── sql/               # Scripts SQL (init, migrations)
-│   └── traefik/           # Exemples de labels Traefik
-├── mcp-excalidraw/        # Code du MCP custom
-│   ├── src/               # Code source (Python FastMCP ou TypeScript)
-│   └── .env.example       # Variables spécifiques au MCP
-└── docs/                  # Documentation technique
-    ├── architecture.md
-    ├── workflows.md
-    └── migration-guide.md
+agni-mcp-stack/
+├── CLAUDE.md                  # Brief de contexte complet
+├── README.md                  # Ce fichier
+├── .env.example               # Template variables d'environnement
+├── infra/                     # Infrastructure et déploiement
+│   ├── docker-compose/        # Compositions Docker pour Coolify
+│   ├── sql/                   # Scripts SQL (init, migrations)
+│   └── traefik/               # Exemples de labels Traefik
+├── mcp-excalidraw/            # MCP Excalidraw (✅ production)
+│   ├── server.py              # Serveur FastMCP
+│   ├── requirements.txt       # Dépendances Python
+│   ├── Dockerfile             # Image Docker
+│   └── .env.example           # Variables d'environnement
+├── mcp-postgres/              # MCP PostgreSQL (🚧 à développer)
+│   ├── server.py
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── .env.example
+├── mcp-jouet/                 # MCP test auth OIDC
+│   └── server.py
+├── auth-service/              # Service d'authentification
+├── frontend-custom/           # Frontend Excalidraw custom
+└── docs/                      # Documentation technique
+    ├── ARCHITECTURE.md
+    ├── MCP-EXCALIDRAW-TECHNICAL-BRIEF.md
+    └── (autres docs de session)
 ```
 
 ## 🔐 Configuration
@@ -103,4 +131,4 @@ cmartin@agniconsult.fr
 
 ---
 
-*Dernière mise à jour : 15 mai 2026*
+*Dernière mise à jour : 31 mai 2026*

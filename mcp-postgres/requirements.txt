@@ -1,0 +1,6 @@
+fastmcp>=3.3.1
+asyncpg>=0.30.0
+uvicorn>=0.32.1
+redis>=5.2.1
+cryptography>=44.0.0
+httpx>=0.28.1
