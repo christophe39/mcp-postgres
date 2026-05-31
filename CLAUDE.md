@@ -1,17 +1,24 @@
-# CLAUDE.md — Contexte projet OPEPARTNER
+# CLAUDE.md — Contexte AGNI MCP Stack
 
 > Brief de contexte pour Claude Code. À lire en premier avant toute action.
 
 ## 🎯 Vision globale
 
-Mise en place d'un **système Excalidraw self-hosted** intégré à **AFFiNE** (déjà self-hosted) et **NocoDB**, piloté par un **MCP custom** à développer. Objectif : générer et maintenir des schémas (BMC, organigrammes, PESTEL, chaînes de valeur, schémas techniques) directement depuis des prompts Claude, avec stockage pérenne sous mon contrôle.
+Mise en place d'une **suite de MCPs custom self-hosted** pour l'écosystème AGNI (OPEPARTNER, CaloCalc, AGNI Consult). Objectif : intégrer Claude (Desktop/Web/iOS/iPad) avec l'ensemble des services du VPS Hostinger via des MCPs remote HTTPS.
 
-**Deux cas d'usage cibles**, distincts mais utilisant la même brique technique :
+**Composants MCP actuels et futurs** :
 
-1. **Consulting OPEPARTNER** (priorité actuelle) — Dossiers clients confidentiels (RGPD), schémas stratégiques : Business Model Canvas, SWOT, PESTEL, organigrammes, plans 90 jours.
-2. **Documentation CaloCalc** (plus tard) — Schémas techniques publiables : architecture système, flux UI, schémas de principe chauffage.
+1. **MCP Excalidraw** (✅ production) — Génération et maintien de schémas visuels (BMC, PESTEL, SWOT, organigrammes) directement depuis des prompts Claude, avec stockage pérenne dans NocoDB + AFFiNE
+2. **MCP PostgreSQL** (🚧 en développement) — Accès direct aux bases PostgreSQL du VPS (opepartner, calocalc_inscription, db_agni, nocodb_db, affine)
+3. **Futurs MCPs** — NocoDB direct, n8n, Cloudflare R2, etc.
 
-**Principe directeur de migrabilité** : tout est conçu dès le départ pour qu'OPEPARTNER puisse être déménagé un jour sur un VPS dédié sans douleur. Cloisonnement strict des données entre OPEPARTNER, CaloCalc et AGNI Consult.
+**Cas d'usage multi-tenant** :
+
+- **OPEPARTNER** : Dossiers clients confidentiels (RGPD), schémas stratégiques, accès bases consulting
+- **CaloCalc** : Documentation technique, schémas d'architecture, données inscription
+- **AGNI Consult** : Documentation interne, données métier
+
+**Principe directeur de migrabilité** : tout est conçu dès le départ pour qu'OPEPARTNER puisse être déménagé un jour sur un VPS dédié sans douleur. Cloisonnement strict des données par sous-domaines logiques et variables d'environnement (zéro hardcoding).
 
 ## 🏗️ Infrastructure VPS Hostinger (existante)
 
@@ -40,13 +47,13 @@ Justification :
 - Migration future facile via `pg_dump opepartner > backup.sql` ciblé sur cette database uniquement
 - Si isolation maximale nécessaire un jour, on extraira la base vers un container dédié à ce moment-là (pas de regret)
 
-## 🎨 Composants à mettre en place
+## 🎨 Composants du stack
 
-### 1. Base PostgreSQL `opepartner`
+### 1. Base PostgreSQL `opepartner` ✅
 
-Création dans le container `c0408wgcs08kc0w480koowcs` avec 14 tables MVP (modèle relationnel détaillé plus bas).
+Créée dans le container `c0408wgcs08kc0w480koowcs` avec 14 tables MVP (modèle relationnel détaillé plus bas). Connectée à NocoDB.
 
-### 2. Excalidraw self-hosted
+### 2. Excalidraw self-hosted ✅
 
 Déployer via Coolify deux services :
 
@@ -59,11 +66,13 @@ Optionnel pour la collaboration temps réel (peut être ajouté plus tard) : `ex
 
 **Sécurité** : auth Traefik basic auth ou ForwardAuth + IDs longs aléatoires sur les scènes (pas devinables). RGPD-critique pour les dossiers clients OPEPARTNER.
 
-### 3. MCP custom Excalidraw
+### 3. MCP custom Excalidraw ✅
 
-À développer, hébergé sur le VPS comme MCP **remote HTTPS** (exposé via sous-domaine type `mcp-excalidraw.agnisolution.fr`). Permettra d'être utilisé depuis Claude Desktop, Claude.ai web, app iOS, app iPad — couverture cross-device complète.
+**Statut** : ✅ En production
 
-**Préférence langage** : à confirmer avec l'utilisateur (Python FastMCP recommandé pour la rapidité, ou TypeScript pour cohérence avec le stack JS existant).
+MCP **remote HTTPS** hébergé sur le VPS, exposé via `mcp-excalidraw.agnisolution.fr`. Accessible depuis Claude Desktop, Claude.ai web, app iOS, app iPad — couverture cross-device complète.
+
+**Stack technique** : Python FastMCP 3.3.1 + auth OIDC/Keycloak via OIDCProxy (realm `mcp`, client `mcp-excalidraw`).
 
 **Outils à exposer (MVP)** :
 
@@ -87,6 +96,70 @@ EXCALIDRAW_BACKEND_URL
 POSTGRES_URL=postgresql://agni_admin:***@host:5432/opepartner
 N8N_WEBHOOK_BASE_URL
 ```
+
+### 4. MCP custom PostgreSQL
+
+**Statut** : 🚧 En développement (structure créée le 31 mai 2026)
+
+MCP **remote HTTPS** pour accès direct aux bases PostgreSQL du VPS Hostinger, exposé via `mcp-postgres.agnisolution.fr`. Permettra d'interroger et gérer toutes les bases de l'écosystème AGNI depuis Claude (Desktop/Web/iOS/iPad).
+
+**Bases accessibles** (container `c0408wgcs08kc0w480koowcs`, user `agni_admin`) :
+- `opepartner` : données consulting OPEPARTNER (14 tables)
+- `calocalc_inscription` : données CaloCalc
+- `db_agni` : données AGNI Consult
+- `nocodb_db` : métadonnées NocoDB
+- `affine` : données AFFiNE (container séparé `i004k4ckow8c8o8w004wk8oc`, user `affine_admin`)
+
+**Outils exposés (MVP Phase 1)** :
+- `list_databases()` : Liste toutes les bases accessibles
+- `list_tables(database)` : Liste les tables d'une base
+- `get_schema(database, table?)` : Schéma complet (colonnes, types, FK, index)
+- `get_table_stats(database, table)` : Stats (nb lignes, taille, dernière MAJ)
+- `query(database, sql)` : Exécute SELECT (lecture seule)
+
+**Outils futurs (Phases 2-3)** :
+- `execute(database, sql)` : INSERT/UPDATE/DELETE (avec confirmation)
+- `backup_database(database)` : pg_dump vers Cloudflare R2
+- `restore_database(database, backup_id)` : pg_restore depuis R2
+- `create_database(name)` : Créer une nouvelle base
+- `create_opepartner_tables()` : Créer les 14 tables OPEPARTNER (si base vide)
+- `migrate_database(database, migration_script)` : Appliquer une migration SQL
+
+**Stack technique** :
+- Python FastMCP 3.3.1 + asyncpg 0.30.0
+- Auth OIDC/Keycloak via OIDCProxy (realm `mcp`, client `mcp-postgres`)
+- Pool de connexions avec timeout et read-only par défaut
+- Logs d'audit : toutes les requêtes loggées avec utilisateur OIDC
+
+**Variables d'environnement** :
+```
+POSTGRES_HOST=69.62.110.207
+POSTGRES_PORT=5432
+POSTGRES_USER=agni_admin
+POSTGRES_PASSWORD=<secret>
+POSTGRES_DATABASES=opepartner,calocalc_inscription,db_agni,nocodb_db
+
+OIDC_CONFIG_URL=https://keycloak.agnisolution.fr/realms/mcp/.well-known/openid-configuration
+OIDC_CLIENT_ID=mcp-postgres
+OIDC_CLIENT_SECRET=<à_créer_dans_keycloak>
+MCP_BASE_URL=https://mcp-postgres.agnisolution.fr
+
+REDIS_URL=<Redis URL interne>
+JWT_SIGNING_KEY=<généré>
+FERNET_SECRET=<généré>
+
+R2_ENDPOINT_URL=<endpoint>
+R2_ACCESS_KEY_ID=<access_key>
+R2_SECRET_ACCESS_KEY=<secret_key>
+R2_BUCKET_NAME=agni-postgres-backups
+```
+
+**Roadmap** :
+- [ ] Phase 1 : Développement outils de base (list_databases, query, list_tables, get_schema) — **EN COURS**
+- [ ] Phase 2 : Outils de gestion (backup, restore, create_database)
+- [ ] Phase 3 : Templates et migrations (create_opepartner_tables, migrate_database)
+- [ ] Phase 4 : Déploiement Coolify + auth OIDC
+- [ ] Phase 5 : Tests cross-device (Desktop, Web, iOS)
 
 ## 🗄️ Modèle relationnel NocoDB / Postgres OPEPARTNER
 
