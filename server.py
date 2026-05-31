@@ -327,7 +327,8 @@ async def query_readonly(
     async with pool.acquire() as conn:
         async with conn.transaction(readonly=True):
             # Récupère max_rows + 1 pour détecter la troncature
-            rows = await conn.fetch(sql, *params, limit=max_rows + 1)
+            cur = await conn.cursor(sql, *params)
+            rows = await cur.fetch(max_rows + 1)
 
     truncated = len(rows) > max_rows
     rows = rows[:max_rows]
