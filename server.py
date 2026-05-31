@@ -1,5 +1,6 @@
 """
-MCP PostgreSQL OPEPARTNER - Accès lecture seule aux bases du VPS Hostinger
+MCP PostgreSQL OPEPARTNER - Accès lecture/écriture aux bases du VPS Hostinger
+Écriture protégée par rôle Keycloak 'mcp_write'
 """
 import os
 import sys
@@ -38,13 +39,17 @@ REDIS_URL     = os.environ["REDIS_URL"]
 JWT_KEY       = os.environ["JWT_SIGNING_KEY"]
 FERNET_SECRET = os.environ["FERNET_SECRET"]
 
-# PostgreSQL
+# PostgreSQL - Lecture seule (rôle mcp_ro)
 DB_HOST = os.environ["DB_HOST"]
 DB_PORT = int(os.environ.get("DB_PORT", "5432"))
 DB_USER = os.environ["DB_USER"]
 DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_WHITELIST = [db.strip() for db in os.environ["DB_WHITELIST"].split(",")]
 DB_DEFAULT = os.environ.get("DB_DEFAULT", "db_agni")
+
+# PostgreSQL - Écriture (rôle mcp_rw)
+DB_RW_USER = os.environ.get("DB_RW_USER", "")
+DB_RW_PASSWORD = os.environ.get("DB_RW_PASSWORD", "")
 
 # Limites de sécurité
 QUERY_MAX_ROWS_DEFAULT = int(os.environ.get("QUERY_MAX_ROWS_DEFAULT", "100"))
@@ -81,12 +86,15 @@ auth = OIDCProxy(
 
 # ========== Connection Pools PostgreSQL ==========
 
-# Dictionnaire de pools : {database: asyncpg.Pool}
+# Dictionnaire de pools lecture seule : {database: asyncpg.Pool}
 _pools: Dict[str, asyncpg.Pool] = {}
+
+# Dictionnaire de pools lecture-écriture : {database: asyncpg.Pool}
+_rw_pools: Dict[str, asyncpg.Pool] = {}
 
 async def get_pool(database: str) -> asyncpg.Pool:
     """
-    Obtient ou crée un pool de connexions pour une base de données.
+    Obtient ou crée un pool de connexions LECTURE SEULE pour une base de données.
     Refuse si la base n'est pas dans la whitelist.
     """
     if database not in DB_WHITELIST:
@@ -96,7 +104,7 @@ async def get_pool(database: str) -> asyncpg.Pool:
         )
 
     if database not in _pools:
-        logger.info(f"Création du pool pour la base '{database}'")
+        logger.info(f"Création du pool RO pour la base '{database}'")
         _pools[database] = await asyncpg.create_pool(
             host=DB_HOST,
             port=DB_PORT,
@@ -114,13 +122,56 @@ async def get_pool(database: str) -> asyncpg.Pool:
 
     return _pools[database]
 
+async def get_rw_pool(database: str) -> asyncpg.Pool:
+    """
+    Obtient ou crée un pool de connexions LECTURE-ÉCRITURE pour une base de données.
+    Refuse si la base n'est pas dans la whitelist.
+    """
+    if database not in DB_WHITELIST:
+        raise ValueError(
+            f"Base de données '{database}' non autorisée. "
+            f"Bases disponibles : {', '.join(DB_WHITELIST)}"
+        )
+
+    if not DB_RW_USER or not DB_RW_PASSWORD:
+        raise RuntimeError(
+            "Credentials d'écriture non configurés (DB_RW_USER/DB_RW_PASSWORD manquants)"
+        )
+
+    if database not in _rw_pools:
+        logger.info(f"Création du pool RW pour la base '{database}'")
+        _rw_pools[database] = await asyncpg.create_pool(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_RW_USER,
+            password=DB_RW_PASSWORD,
+            database=database,
+            min_size=1,
+            max_size=5,
+            command_timeout=30.0,
+            server_settings={
+                "statement_timeout": str(STATEMENT_TIMEOUT_MS)
+                # PAS de default_transaction_read_only (c'est le pool d'écriture)
+            }
+        )
+
+    return _rw_pools[database]
+
 async def cleanup_pools():
-    """Ferme tous les pools de connexions."""
+    """Ferme tous les pools de connexions (lecture + écriture)."""
     logger.info("Fermeture des pools de connexions...")
+
+    # Pools lecture seule
     for db, pool in _pools.items():
         await pool.close()
-        logger.info(f"Pool fermé pour '{db}'")
+        logger.info(f"Pool RO fermé pour '{db}'")
     _pools.clear()
+
+    # Pools lecture-écriture
+    for db, pool in _rw_pools.items():
+        await pool.close()
+        logger.info(f"Pool RW fermé pour '{db}'")
+    _rw_pools.clear()
 
 # ========== Lifespan FastMCP ==========
 
@@ -146,6 +197,21 @@ def get_user_id() -> str:
     except:
         return "anonyme"
 
+def has_write_access() -> bool:
+    """
+    Vérifie si l'utilisateur possède le rôle Keycloak 'mcp_write'.
+
+    Returns:
+        True si le rôle est présent, False sinon
+    """
+    try:
+        token = get_access_token()
+        realm_access = token.claims.get("realm_access", {})
+        roles = realm_access.get("roles", [])
+        return "mcp_write" in roles
+    except:
+        return False
+
 def serialize_value(val: Any) -> Any:
     """Convertit une valeur PostgreSQL en type JSON-sérialisable."""
     if isinstance(val, (datetime, date)):
@@ -163,13 +229,15 @@ def serialize_row(row: asyncpg.Record) -> Dict[str, Any]:
 # ========== Outils MCP ==========
 
 @mcp.tool
-async def whoami() -> Dict[str, str]:
-    """Renvoie l'identité de l'utilisateur authentifié."""
+async def whoami() -> Dict[str, Any]:
+    """Renvoie l'identité de l'utilisateur authentifié et ses permissions."""
     user_id = get_user_id()
-    logger.info(f"[whoami] Utilisateur: {user_id}")
+    write_access = has_write_access()
+    logger.info(f"[whoami] Utilisateur: {user_id}, écriture: {write_access}")
     return {
         "user_id": user_id,
-        "message": "MCP Postgres OPEPARTNER - Lecture seule"
+        "write_access": write_access,
+        "message": f"MCP Postgres OPEPARTNER - {'Lecture/Écriture' if write_access else 'Lecture seule'}"
     }
 
 @mcp.tool
@@ -344,6 +412,148 @@ async def query_readonly(
         "truncated": truncated,
         "max_rows": max_rows
     }
+
+# ========== Outils MCP - Écriture (protégés par rôle mcp_write) ==========
+
+@mcp.tool
+async def execute_write(
+    database: str,
+    sql: str,
+    params: Optional[List[Any]] = None
+) -> Dict[str, Any]:
+    """
+    Exécute une requête SQL d'écriture (INSERT/UPDATE/DELETE/CREATE/ALTER/DROP).
+
+    IMPORTANT : Requiert le rôle Keycloak 'mcp_write'.
+
+    Args:
+        database: Nom de la base de données
+        sql: Requête SQL (paramètres avec $1, $2, etc.)
+        params: Valeurs des paramètres (optionnel)
+
+    Returns:
+        Dictionnaire avec statut et lignes retournées (si RETURNING)
+    """
+    user_id = get_user_id()
+    sql_excerpt = sql[:100].replace("\n", " ")
+
+    # Gate d'accès écriture
+    if not has_write_access():
+        logger.warning(f"[execute_write] REFUSÉ - Utilisateur: {user_id}, base: {database}")
+        raise PermissionError(
+            "Écriture non autorisée (rôle Keycloak 'mcp_write' requis). "
+            "Contactez l'administrateur pour obtenir ce rôle."
+        )
+
+    logger.info(f"[execute_write] Utilisateur: {user_id}, base: {database}, SQL: {sql_excerpt}...")
+
+    # Filet anti-tables NocoDB (nc_*)
+    sql_upper = sql.upper()
+    if "NC_" in sql_upper or "\"NC_" in sql or "'NC_" in sql:
+        raise ValueError(
+            "Accès aux tables NocoDB (nc_*) interdit. "
+            "Le rôle mcp_rw n'a aucun droit sur ces tables."
+        )
+
+    # Filet anti-schémas système
+    forbidden_schemas = ["pg_catalog", "information_schema", "pg_toast", "pg_temp"]
+    for schema in forbidden_schemas:
+        if schema in sql_upper:
+            raise ValueError(
+                f"Accès au schéma système '{schema}' interdit."
+            )
+
+    pool = await get_rw_pool(database)
+    params = params or []
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Exécute la requête
+            status = await conn.execute(sql, *params)
+
+            # Si RETURNING, récupère les lignes
+            if "RETURNING" in sql_upper:
+                cur = await conn.cursor(sql, *params)
+                rows = await cur.fetch(1000)  # Max 1000 lignes retournées
+                return {
+                    "database": database,
+                    "status": status,
+                    "rows": [serialize_row(r) for r in rows],
+                    "row_count": len(rows)
+                }
+            else:
+                return {
+                    "database": database,
+                    "status": status,
+                    "message": f"Exécution réussie : {status}"
+                }
+
+@mcp.tool
+async def create_table(
+    database: str,
+    schema: str,
+    table: str,
+    columns: List[Dict[str, str]]
+) -> Dict[str, str]:
+    """
+    Crée une nouvelle table dans la base de données.
+
+    IMPORTANT : Requiert le rôle Keycloak 'mcp_write'.
+
+    Args:
+        database: Nom de la base de données
+        schema: Nom du schéma
+        table: Nom de la table
+        columns: Liste de colonnes [{name, type, constraints?}, ...]
+                 Ex: [{"name": "id", "type": "SERIAL", "constraints": "PRIMARY KEY"},
+                      {"name": "name", "type": "TEXT", "constraints": "NOT NULL"}]
+
+    Returns:
+        Statut de la création
+    """
+    user_id = get_user_id()
+
+    # Gate d'accès écriture
+    if not has_write_access():
+        logger.warning(f"[create_table] REFUSÉ - Utilisateur: {user_id}, table: {schema}.{table}")
+        raise PermissionError(
+            "Écriture non autorisée (rôle Keycloak 'mcp_write' requis). "
+            "Contactez l'administrateur pour obtenir ce rôle."
+        )
+
+    logger.info(f"[create_table] Utilisateur: {user_id}, base: {database}, table: {schema}.{table}")
+
+    pool = await get_rw_pool(database)
+
+    # Construction sécurisée de la requête CREATE TABLE
+    async with pool.acquire() as conn:
+        # quote_ident pour sécuriser les identifiants
+        schema_quoted = await conn.fetchval("SELECT quote_ident($1)", schema)
+        table_quoted = await conn.fetchval("SELECT quote_ident($1)", table)
+
+        # Construction des colonnes
+        col_defs = []
+        for col in columns:
+            col_name = await conn.fetchval("SELECT quote_ident($1)", col["name"])
+            col_type = col["type"]  # Les types SQL sont des mots-clés, pas besoin de quote
+            col_constraints = col.get("constraints", "")
+            col_defs.append(f"{col_name} {col_type} {col_constraints}".strip())
+
+        columns_sql = ",\n    ".join(col_defs)
+        create_sql = f"CREATE TABLE {schema_quoted}.{table_quoted} (\n    {columns_sql}\n);"
+
+        logger.info(f"[create_table] SQL généré: {create_sql[:200]}...")
+
+        async with conn.transaction():
+            await conn.execute(create_sql)
+
+        return {
+            "database": database,
+            "schema": schema,
+            "table": table,
+            "message": f"Table {schema}.{table} créée avec succès",
+            "sql": create_sql
+        }
 
 # ========== Main ==========
 

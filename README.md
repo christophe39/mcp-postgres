@@ -1,8 +1,8 @@
 # MCP Postgres OPEPARTNER
 
-MCP pour accès **lecture seule** aux bases PostgreSQL du VPS Hostinger, protégé par OIDCProxy (FastMCP) → Keycloak.
+MCP pour accès **lecture/écriture** aux bases PostgreSQL du VPS Hostinger, protégé par OIDCProxy (FastMCP) → Keycloak.
 
-**Phase actuelle** : C2-C5 — Lecture seule complète avec introspection + requêtes paramétrées.
+**Phase actuelle** : C2-C6 — Lecture complète + Écriture protégée par rôle Keycloak `mcp_write`.
 
 ## 🎯 Objectif
 
@@ -12,18 +12,18 @@ Permettre à Claude (Desktop/Web/iOS/iPad) d'interroger les bases PostgreSQL de 
 - `db_agni` : données AGNI Consult
 - `nocodb_db` : métadonnées NocoDB
 
-## 🛠️ Outils exposés (lecture seule)
+## 🛠️ Outils exposés
 
 ### Identité
-- `whoami()` : Identité de l'utilisateur authentifié (remplace hello_world)
+- `whoami()` : Identité de l'utilisateur authentifié + permissions (lecture/écriture)
 
-### Introspection
+### Introspection (lecture seule)
 - `list_databases()` : Liste des bases autorisées (DB_WHITELIST)
 - `list_schemas(database)` : Schémas d'une base (hors schémas système)
 - `list_tables(database, schema="public")` : Tables/vues d'un schéma
 - `describe_table(database, schema, table)` : Structure complète (colonnes, types, clés primaires)
 
-### Requêtes
+### Requêtes lecture seule
 - `query_readonly(database, sql, params?, max_rows?)` : Exécute une requête SELECT
   - Transaction READ ONLY
   - Paramètres via `$1`, `$2`, etc. (jamais de concaténation SQL)
@@ -31,26 +31,48 @@ Permettre à Claude (Desktop/Web/iOS/iPad) d'interroger les bases PostgreSQL de 
   - Détection de troncature automatique
   - Sérialisation JSON (dates → ISO, Decimal → string)
 
+### 🔒 Écriture (requiert rôle Keycloak `mcp_write`)
+- `execute_write(database, sql, params?)` : Exécute INSERT/UPDATE/DELETE/CREATE/ALTER/DROP
+  - Gate d'accès : vérifie le rôle Keycloak `mcp_write`
+  - Transaction avec commit/rollback automatique
+  - Paramètres via `$1`, `$2`, etc.
+  - Support RETURNING (retourne les lignes créées/modifiées)
+  - Bloque les tables NocoDB (`nc_*`) et les schémas système
+  - Logs audit complets
+
+- `create_table(database, schema, table, columns)` : Helper CREATE TABLE sécurisé
+  - Gate d'accès : vérifie le rôle Keycloak `mcp_write`
+  - Utilise `quote_ident` pour sécuriser les identifiants
+  - Colonnes : `[{name, type, constraints?}, ...]`
+  - Ex: `[{"name": "id", "type": "SERIAL", "constraints": "PRIMARY KEY"}]`
+
 ## 🔐 Sécurité
 
 ### Auth & Autorisation
 - **Auth OIDC/Keycloak** via OIDCProxy (realm `mcp`, client `mcp-postgres`)
-- **Rôle PostgreSQL** : `mcp_ro` (lecture seule stricte, créé par l'infra)
+- **Rôles PostgreSQL** :
+  - `mcp_ro` : lecture seule stricte (tous les utilisateurs)
+  - `mcp_rw` : lecture/écriture, SANS droit sur les tables `nc_*` (NocoDB)
+- **Rôle Keycloak** : `mcp_write` requis pour utiliser les outils d'écriture
+- **Pools séparés** : pool RO distinct du pool RW (isolement complet)
 - **Whitelist de bases** : seules les bases listées dans `DB_WHITELIST` sont accessibles
 
 ### Garde-fous SQL
 - **server_settings PostgreSQL** :
-  - `statement_timeout` : timeout requis par requête (5000ms par défaut)
-  - `default_transaction_read_only` : "on" (lecture seule forcée)
+  - Pool RO : `statement_timeout` + `default_transaction_read_only: "on"`
+  - Pool RW : `statement_timeout` uniquement (écriture autorisée)
 - **Identifiants SQL** : toujours via paramètres (`$1`, `$2`) ou `quote_ident`, jamais de f-string
-- **Limite de lignes** : forcée côté serveur (fetch limité), pas via `LIMIT` SQL injectable
+- **Limite de lignes** : forcée côté serveur (curseur), pas via `LIMIT` SQL injectable
+- **Filets anti-NocoDB** : `execute_write` refuse toute requête visant une table `nc_*`
+- **Filets anti-système** : bloque les schémas `pg_catalog`, `information_schema`, `pg_*`
 
 ### Logs d'audit
 Chaque appel d'outil logue :
 - Identité utilisateur (Keycloak `sub` claim)
 - Outil appelé
 - Base ciblée
-- Extrait SQL (pour `query_readonly`)
+- Extrait SQL (pour `query_readonly` et `execute_write`)
+- **Tentatives refusées** : les échecs de gate `mcp_write` sont loggés en WARNING
 
 ## 📦 Variables d'environnement
 
@@ -65,6 +87,10 @@ DB_USER=mcp_ro
 DB_PASSWORD=<secret par Desktop>
 DB_WHITELIST=opepartner,calocalc_inscription,db_agni,nocodb_db
 DB_DEFAULT=db_agni
+
+# PostgreSQL - Accès écriture (rôle mcp_rw, protégé par rôle Keycloak mcp_write)
+DB_RW_USER=mcp_rw
+DB_RW_PASSWORD=<secret par Desktop>
 
 # Limites de sécurité
 QUERY_MAX_ROWS_DEFAULT=100
@@ -100,11 +126,12 @@ FERNET_SECRET=<généré par Desktop>
 ## 📋 Roadmap
 
 - [x] **C1** : Squelette auth-only déployable
-- [x] **C2** : asyncpg + pools multi-base
+- [x] **C2** : asyncpg + pools multi-base (lecture seule)
 - [x] **C3** : Outils d'introspection (list_databases, list_schemas, list_tables, describe_table)
-- [x] **C4** : query_readonly avec paramètres + limite de lignes
+- [x] **C4** : query_readonly avec paramètres + limite de lignes (curseur asyncpg)
 - [x] **C5** : Garde-fous (whitelist, quote_ident, logs audit, erreurs claires)
-- [ ] **Futur** : Outils écriture (INSERT/UPDATE/DELETE avec confirmation), backups R2, templates
+- [x] **C6** : Écriture protégée par rôle Keycloak mcp_write (execute_write, create_table)
+- [ ] **Futur** : Backups R2, templates métier (create_opepartner_tables), migrations
 
 ## 🔗 Liens
 
