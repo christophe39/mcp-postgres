@@ -4,6 +4,7 @@ MCP PostgreSQL OPEPARTNER - Accès lecture/écriture aux bases du VPS Hostinger
 """
 import os
 import sys
+import re
 import hashlib
 import base64
 import logging
@@ -447,45 +448,42 @@ async def execute_write(
 
     logger.info(f"[execute_write] Utilisateur: {user_id}, base: {database}, SQL: {sql_excerpt}...")
 
-    # Filet anti-tables NocoDB (nc_*)
-    sql_upper = sql.upper()
-    if "NC_" in sql_upper or "\"NC_" in sql or "'NC_" in sql:
+    # Filet anti-tables NocoDB (nc_*) - détecte nc_ en début d'identifiant uniquement
+    if re.search(r'\bnc_', sql, re.IGNORECASE):
         raise ValueError(
             "Accès aux tables NocoDB (nc_*) interdit. "
             "Le rôle mcp_rw n'a aucun droit sur ces tables."
         )
 
     # Filet anti-schémas système
-    forbidden_schemas = ["pg_catalog", "information_schema", "pg_toast", "pg_temp"]
-    for schema in forbidden_schemas:
-        if schema in sql_upper:
+    sql_lower = sql.lower()
+    for schema in ("pg_catalog", "information_schema", "pg_toast", "pg_temp"):
+        if re.search(r'\b' + schema + r'\b', sql_lower):
             raise ValueError(
                 f"Accès au schéma système '{schema}' interdit."
             )
 
     pool = await get_rw_pool(database)
     params = params or []
+    sql_upper = sql.upper()
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Exécute la requête
-            status = await conn.execute(sql, *params)
-
-            # Si RETURNING, récupère les lignes
+            # Exécute la requête UNE SEULE fois
             if "RETURNING" in sql_upper:
-                cur = await conn.cursor(sql, *params)
-                rows = await cur.fetch(1000)  # Max 1000 lignes retournées
+                rows = await conn.fetch(sql, *params)
                 return {
                     "database": database,
-                    "status": status,
+                    "status": f"RETURNING {len(rows)} ligne(s)",
                     "rows": [serialize_row(r) for r in rows],
-                    "row_count": len(rows)
+                    "row_count": len(rows),
                 }
             else:
+                status = await conn.execute(sql, *params)
                 return {
                     "database": database,
                     "status": status,
-                    "message": f"Exécution réussie : {status}"
+                    "message": f"Exécution réussie : {status}",
                 }
 
 @mcp.tool
