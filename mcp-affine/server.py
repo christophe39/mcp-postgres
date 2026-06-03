@@ -43,7 +43,6 @@ auth = OIDCProxy(
     config_url=CONFIG_URL,
     client_id=CLIENT_ID,
     client_secret=CLIENT_SECRET,
-    audience=BASE_URL,
     base_url=BASE_URL,
     redirect_path="/auth/callback",
     required_scopes=["openid", "mcp:execute"],
