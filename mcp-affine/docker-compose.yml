@@ -13,6 +13,8 @@ services:
       AFFINE_WORKSPACE_ID: '${AFFINE_WORKSPACE_ID}'
     expose:
       - '3000'
+    networks:
+      - coolify
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/readyz"]
       interval: 30s
@@ -41,3 +43,9 @@ services:
       AUTH_ENABLED: 'true'
     expose:
       - '8000'
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
