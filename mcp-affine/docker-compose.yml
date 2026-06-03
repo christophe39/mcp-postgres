@@ -1,0 +1,49 @@
+services:
+  dawncrow:
+    image: ghcr.io/dawncr0w/affine-mcp-server:latest
+    restart: unless-stopped
+    environment:
+      MCP_TRANSPORT: http
+      AFFINE_MCP_HTTP_HOST: 0.0.0.0
+      PORT: '3000'
+      AFFINE_MCP_AUTH_MODE: bearer
+      AFFINE_MCP_HTTP_TOKEN: '${AFFINE_MCP_HTTP_TOKEN}'
+      AFFINE_BASE_URL: '${AFFINE_BASE_URL}'
+      AFFINE_API_TOKEN: '${AFFINE_API_TOKEN}'
+      AFFINE_WORKSPACE_ID: '${AFFINE_WORKSPACE_ID}'
+    expose:
+      - '3000'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  portier:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      dawncrow:
+        condition: service_healthy
+    environment:
+      OIDC_CONFIG_URL: '${OIDC_CONFIG_URL}'
+      OIDC_CLIENT_ID: '${OIDC_CLIENT_ID}'
+      OIDC_CLIENT_SECRET: '${OIDC_CLIENT_SECRET}'
+      MCP_BASE_URL: '${MCP_BASE_URL}'
+      REDIS_URL: '${REDIS_URL}'
+      JWT_SIGNING_KEY: '${JWT_SIGNING_KEY}'
+      FERNET_SECRET: '${FERNET_SECRET}'
+      DAWNCROW_BACKEND_URL: http://dawncrow:3000/mcp
+      DAWNCROW_BEARER_TOKEN: '${AFFINE_MCP_HTTP_TOKEN}'
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: '8000'
+      AUTH_ENABLED: 'true'
+    expose:
+      - '8000'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
