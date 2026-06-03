@@ -2,4 +2,3 @@ fastmcp==3.3.1
 cryptography==44.0.0
 py-key-value-aio[redis]==0.4.4
 httpx==0.28.1
-uvicorn[standard]>=0.30.0
