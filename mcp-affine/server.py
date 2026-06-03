@@ -1,18 +1,23 @@
+"""
+Portier MCP AFFiNE - Proxy HTTP avec auth OIDC/Keycloak
+Proxifie toutes les requêtes MCP vers DAWNCR0W après validation OAuth.
+"""
 import os
 import hashlib
 import base64
 import httpx
-from fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse, StreamingResponse
+from starlette.routing import Route
+from starlette.middleware import Middleware
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
-from fastmcp.server.dependencies import get_access_token
 from key_value.aio.stores.redis import RedisStore
 from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 from cryptography.fernet import Fernet
-from starlette.requests import Request
-from starlette.responses import JSONResponse, StreamingResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
+import uvicorn
 
+# Configuration
 CONFIG_URL           = os.environ["OIDC_CONFIG_URL"]
 CLIENT_ID            = os.environ["OIDC_CLIENT_ID"]
 CLIENT_SECRET        = os.environ["OIDC_CLIENT_SECRET"]
@@ -50,57 +55,61 @@ auth = OIDCProxy(
     client_storage=encrypted_store,
 )
 
-# Middleware pour /health (non protégé) et /mcp (proxy vers DAWNCR0W)
-class ProxyMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Route /health non protégée pour healthcheck Coolify
-        if request.url.path == "/health" and request.method == "GET":
-            return JSONResponse({"status": "ok"})
+# Client HTTP réutilisable
+http_client = httpx.AsyncClient(timeout=300.0)
 
-        # Route /mcp proxy vers DAWNCR0W (avec auth OAuth)
-        if request.url.path == "/mcp" and request.method == "POST":
-            # Validation OAuth via le handler normal (call_next)
-            # mais on remplace ensuite par notre proxy
-            try:
-                # Lire le body avant de passer au handler
-                body = await request.body()
+async def health_check(request: Request):
+    """Healthcheck non protégé pour Coolify."""
+    return JSONResponse({"status": "ok"})
 
-                # Headers pour DAWNCR0W
-                headers = {
-                    "Authorization": f"Bearer {DAWNCROW_BEARER_TOKEN}",
-                    "Content-Type": request.headers.get("Content-Type", "application/json"),
-                }
+async def proxy_to_dawncrow(request: Request):
+    """
+    Proxifie toutes les requêtes MCP vers DAWNCR0W.
+    L'auth OAuth est déjà validée par OIDCProxy middleware.
+    """
+    # Lire le body
+    body = await request.body()
 
-                # Proxifier vers DAWNCR0W
-                async with httpx.AsyncClient(timeout=300.0) as client:
-                    async with client.stream(
-                        method="POST",
-                        url=DAWNCROW_BACKEND_URL,
-                        headers=headers,
-                        content=body,
-                    ) as response:
-                        # Copier les headers (sauf certains)
-                        response_headers = dict(response.headers)
-                        for key in ["content-encoding", "content-length", "transfer-encoding"]:
-                            response_headers.pop(key, None)
+    # Headers pour DAWNCR0W (remplace auth OAuth par bearer token)
+    headers = {
+        "Authorization": f"Bearer {DAWNCROW_BEARER_TOKEN}",
+        "Content-Type": request.headers.get("Content-Type", "application/json"),
+    }
 
-                        # Stream la réponse
-                        async def stream_response():
-                            async for chunk in response.aiter_bytes():
-                                yield chunk
+    # Proxifier vers DAWNCR0W avec streaming
+    async with http_client.stream(
+        method=request.method,
+        url=DAWNCROW_BACKEND_URL,
+        headers=headers,
+        content=body,
+    ) as response:
+        # Copier headers (sauf certains)
+        response_headers = dict(response.headers)
+        for key in ["content-encoding", "content-length", "transfer-encoding"]:
+            response_headers.pop(key, None)
 
-                        return StreamingResponse(
-                            stream_response(),
-                            status_code=response.status_code,
-                            headers=response_headers,
-                        )
-            except Exception as e:
-                return JSONResponse({"error": str(e)}, status_code=500)
+        # Stream la réponse
+        async def stream_response():
+            async for chunk in response.aiter_bytes():
+                yield chunk
 
-        # Autres routes : passer au handler suivant
-        return await call_next(request)
+        return StreamingResponse(
+            stream_response(),
+            status_code=response.status_code,
+            headers=response_headers,
+        )
 
-mcp = FastMCP("MCP AFFiNE Proxy", auth=auth, middleware=[ProxyMiddleware])
+# Routes
+routes = [
+    Route("/health", health_check, methods=["GET"]),
+    Route("/mcp", proxy_to_dawncrow, methods=["GET", "POST"]),
+]
+
+# Application Starlette avec OIDCProxy middleware
+app = Starlette(
+    routes=routes,
+    middleware=[Middleware(auth.middleware_class)],
+)
 
 if __name__ == "__main__":
-    mcp.run(transport="http", host=MCP_HOST, port=MCP_PORT)
+    uvicorn.run(app, host=MCP_HOST, port=MCP_PORT)
