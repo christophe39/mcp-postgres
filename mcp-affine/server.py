@@ -1,13 +1,13 @@
 """
-Portier MCP AFFiNE - Proxy vers DAWNCR0W avec auth OIDC
-Solution simple : FastMCP forward tout vers DAWNCR0W via un provider proxy.
+Portier MCP AFFiNE - Proxy natif FastMCP vers DAWNCR0W
+Auth OIDC/Keycloak → Proxy transparent vers DAWNCR0W
 """
 import os
 import hashlib
 import base64
-from fastmcp import FastMCP
+from fastmcp.server import create_proxy
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
-from fastmcp.server.providers.proxy import FastMCPProxy
+from fastmcp.client.transports.http import StreamableHttpTransport
 from key_value.aio.stores.redis import RedisStore
 from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 from cryptography.fernet import Fernet
@@ -50,18 +50,18 @@ auth = OIDCProxy(
     client_storage=encrypted_store,
 )
 
-# Créer un proxy vers DAWNCR0W
-dawncrow_proxy = FastMCPProxy(
+# Transport HTTP vers DAWNCR0W avec bearer token
+transport = StreamableHttpTransport(
     url=DAWNCROW_BACKEND_URL,
     headers={"Authorization": f"Bearer {DAWNCROW_BEARER_TOKEN}"},
 )
 
-# FastMCP avec le proxy DAWNCR0W
-mcp = FastMCP(
-    name="MCP AFFiNE Proxy",
+# Proxy natif FastMCP avec auth OIDC
+proxy = create_proxy(
+    target=transport,
     auth=auth,
-    providers=[dawncrow_proxy],
+    name="MCP AFFiNE Proxy",
 )
 
 if __name__ == "__main__":
-    mcp.run(transport="http", host=MCP_HOST, port=MCP_PORT)
+    proxy.run(transport="http", host=MCP_HOST, port=MCP_PORT)
