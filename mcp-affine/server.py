@@ -53,7 +53,7 @@ auth = OIDCProxy(
 # Transport HTTP vers DAWNCR0W avec bearer token
 transport = StreamableHttpTransport(
     url=DAWNCROW_BACKEND_URL,
-    headers={"Authorization": f"Bearer {DAWNCROW_BEARER_TOKEN}"},
+    headers={"authorization": f"Bearer {DAWNCROW_BEARER_TOKEN}"},
 )
 
 # Proxy natif FastMCP avec auth OIDC
