@@ -456,6 +456,51 @@ app.post('/admin/create-user', async (req, res) => {
 });
 
 // ============================================
+// ENDPOINT ADMIN (hash password)
+// ============================================
+app.post('/admin/hash-password', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const adminToken = process.env.ADMIN_TOKEN;
+
+    if (!adminToken) {
+      console.error('❌ ADMIN_TOKEN non configuré');
+      return res.status(500).json({ error: 'Configuration serveur incorrecte' });
+    }
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token d\'authentification requis' });
+    }
+
+    const token = authHeader.slice(7);
+
+    if (token !== adminToken) {
+      console.log('❌ Tentative d\'accès admin avec token invalide');
+      return res.status(403).json({ error: 'Token invalide' });
+    }
+
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password requis' });
+    }
+
+    const saltRounds = 10;
+    const hash = await bcrypt.hash(password, saltRounds);
+
+    console.log(`✅ Hash généré via admin endpoint (longueur: ${password.length} caractères)`);
+
+    res.status(200).json({
+      hash
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur génération hash:', error);
+    res.status(500).json({ error: 'Erreur interne du serveur' });
+  }
+});
+
+// ============================================
 // HEALTHCHECK
 // ============================================
 app.get('/health', (req, res) => {
@@ -495,7 +540,7 @@ app.get('/test', async (req, res) => {
 app.use((req, res) => {
   res.status(404).json({
     error: 'Endpoint non trouvé',
-    available_endpoints: ['/login', '/auth', '/logout', '/health', '/admin/create-user', '/test']
+    available_endpoints: ['/login', '/auth', '/logout', '/health', '/admin/create-user', '/admin/hash-password', '/test']
   });
 });
 
