@@ -271,10 +271,14 @@ app.post('/login', async (req, res) => {
     }
 
     // Requête SQL pour récupérer l'utilisateur
+    console.log(`🔍 [DEBUG] Tentative de login pour email: ${email}`);
+
     const result = await pool.query(
       'SELECT id, email, password_hash, nom, actif FROM utilisateurs WHERE email = $1',
       [email]
     );
+
+    console.log(`🔍 [DEBUG] Résultat SQL: ${result.rows.length} ligne(s) trouvée(s)`);
 
     if (result.rows.length === 0) {
       recordFailure(ip);
@@ -283,6 +287,7 @@ app.post('/login', async (req, res) => {
     }
 
     const user = result.rows[0];
+    console.log(`🔍 [DEBUG] Utilisateur trouvé: email=${user.email}, actif=${user.actif}, password_hash=${user.password_hash?.substring(0, 20)}...`);
 
     if (!user.actif) {
       recordFailure(ip);
@@ -291,7 +296,14 @@ app.post('/login', async (req, res) => {
     }
 
     // Vérifier le mot de passe
+    console.log(`🔍 [DEBUG] Début vérification bcrypt.compare`);
+    console.log(`🔍 [DEBUG] - Password soumis (longueur): ${password.length} caractères`);
+    console.log(`🔍 [DEBUG] - Hash en base (longueur): ${user.password_hash?.length} caractères`);
+    console.log(`🔍 [DEBUG] - Hash complet: ${user.password_hash}`);
+
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+    console.log(`🔍 [DEBUG] Résultat bcrypt.compare: ${passwordMatch}`);
 
     if (!passwordMatch) {
       recordFailure(ip);
@@ -320,7 +332,10 @@ app.post('/login', async (req, res) => {
     res.redirect(redirectTo);
 
   } catch (error) {
-    console.error('❌ Erreur interne lors du login:', error);
+    console.error('❌ [DEBUG] Erreur interne lors du login:');
+    console.error('❌ [DEBUG] - Message:', error.message);
+    console.error('❌ [DEBUG] - Stack:', error.stack);
+    console.error('❌ [DEBUG] - Error complet:', error);
     res.redirect('/login?error=server');
   }
 });
