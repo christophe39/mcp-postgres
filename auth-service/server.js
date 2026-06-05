@@ -98,7 +98,8 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production', // HTTPS en prod
     httpOnly: true,
     maxAge: 365 * 24 * 60 * 60 * 1000, // 1 an (accès définitif)
-    sameSite: 'lax'
+    sameSite: 'lax',
+    domain: process.env.COOKIE_DOMAIN || undefined
   },
   name: 'excalidraw.sid' // Nom du cookie
 }));
